@@ -1,0 +1,11 @@
+# dados de prospecção (nunca vão para o GitHub)
+data/
+# gerados nesta máquina por ./instalar.sh
+bin/
+browsers/
+ref/municipios.json
+# python
+__pycache__/
+.venv/
+*.pyc
+.DS_Store
