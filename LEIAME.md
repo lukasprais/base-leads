@@ -22,16 +22,39 @@ Abre em http://localhost:8090. Para fechar, Ctrl+C no terminal.
      Até 3 km é uma busca só. Acima disso a área é dividida em quadrados e pega bem mais empresas.
 3. "Buscar empresas". Cada segmento × cidade vira uma consulta. Roda em segundo plano.
 
-**Tela "Resultados"**: mapa + lista. Filtros por busca, cidades, categorias (marque várias),
-celular, site, Instagram, e-mail, perfil sem dono, nota, avaliações, status, bairro e distância
-de um ponto que você clica no mapa. Marque o status, anote, e baixe o CSV (abre no Excel).
+**Painel**: números da prospecção, empresas novas por dia, funil, as melhores para abordar,
+próximos retornos, telefones repetidos, quem mudou no Google e atividade recente.
+
+**Leads**: mapa + lista. Filtros por busca, score, cidades, categorias, tags, celular, site,
+Instagram, e-mail, perfil sem dono, telefone repetido, mudou no Google, WhatsApp conferido,
+nota, avaliações, status, retorno, bairro e distância de um ponto que você clica no mapa.
+Marque várias para mudar o status, pôr uma tag, conferir o WhatsApp ou baixar só elas em CSV.
+"Salvar lista" guarda os filtros com um nome no menu.
+
+**Detalhe da empresa**: score com os motivos, tags, status, data de retorno, mensagem pronta
+(modelos com {nome}, {cidade}, {bairro}, {categoria}, {nota}), anotações e o histórico do contato
+(status, mensagens, ligações, visitas, o que mudou no Google).
+
+**Funil**: quadro por status; arraste o cartão para mudar.
+
+**Histórico**: todas as buscas. "Repetir sozinha" roda a busca de novo toda semana, a cada 15 dias
+ou todo mês, às 7h (o Base de Leads precisa estar aberto). Empresas que mudaram no Google
+(nota, site, telefone, dono) ficam marcadas.
+
+**Configurações**:
+- Zapvu: com a instância e a chave (zv_...), a mensagem sai pelo seu número e dá para conferir
+  quem tem WhatsApp de verdade (até 50 números por vez). O envio é sempre um por vez, pelo botão.
+- Pesos do score de oportunidade. A soma é convertida para 0 a 100.
+
+Atalhos: ⌘K (ou Ctrl K) procura empresa ou ação; `/` vai para a busca da lista; Esc fecha.
 
 Status "Não contatar" esconde a empresa de todas as listas, a não ser que você filtre por ele.
-Rodar a mesma busca de novo atualiza os dados do Maps e mantém seu status e anotações.
+Rodar a mesma busca de novo atualiza os dados do Maps e mantém seu status, tags e anotações.
 
 ## Onde ficam as coisas
 
-- `data/leads.db`: o banco (SQLite). Faça cópia dele de vez em quando.
+- `data/leads.db`: o banco (SQLite), com leads, histórico, listas, agendas e configurações
+  (inclusive a chave do Zapvu). Faça cópia dele de vez em quando e não o compartilhe.
 - `data/buscas/<n>/`: resultado bruto e log de cada busca.
 - `ref/`: lista de municípios do IBGE com coordenadas (para o seletor de cidades).
 - `browsers/`: faz o scraper usar o Google Chrome do Mac. O navegador que vem com ele
@@ -43,6 +66,7 @@ Rodar a mesma busca de novo atualiza os dados do Maps e mantém seu status e ano
 
 - Uma busca roda por vez, de propósito. Buscas muito grandes seguidas podem fazer o Google
   bloquear seu IP por um tempo (aparece como busca com 0 resultados).
-- "WhatsApp" é deduzido: telefone celular (9 dígitos começando com 9). Não garante que tem WhatsApp.
+- "WhatsApp" é deduzido do número (celular com 9 dígitos começando com 9) até ser conferido no
+  Zapvu. Conferir muitos números seguidos pode bloquear o seu; vá aos poucos.
 - Raspar o Maps vai contra os termos do Google. Para uso pessoal e em volume baixo é o risco aceito;
   para volume grande, troque pela Places API oficial.

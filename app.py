@@ -15,8 +15,11 @@ import subprocess
 import threading
 import time
 import unicodedata
+import urllib.error
+import urllib.parse
 import urllib.request
-from datetime import datetime
+import uuid
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
@@ -25,7 +28,7 @@ from pydantic import BaseModel, Field
 
 RAIZ = Path(__file__).parent
 BIN = RAIZ / "bin" / "gmaps"
-DADOS = RAIZ / "data"
+DADOS = Path(os.environ.get("BASE_LEADS_DADOS") or RAIZ / "data")
 REF = RAIZ / "ref"
 DB = DADOS / "leads.db"
 DADOS.mkdir(exist_ok=True)
@@ -89,7 +92,16 @@ def conectar() -> sqlite3.Connection:
     con = sqlite3.connect(DB, timeout=30)
     con.row_factory = sqlite3.Row
     con.create_function("dist_km", 4, _haversine, deterministic=True)
+    con.create_function("digitos", 1, fone_normal, deterministic=True)
     return con
+
+
+def fone_normal(v: str | None) -> str | None:
+    """Telefone só com DDD + número, para achar duplicados ("+55 31 ..." e "(31) ..." viram o mesmo)."""
+    d = re.sub(r"\D", "", v or "")
+    if d.startswith("55") and len(d) >= 12:
+        d = d[2:]
+    return d.lstrip("0") or None
 
 
 def _haversine(lat1, lon1, lat2, lon2):
@@ -149,6 +161,32 @@ with conectar() as c:
         mun = MUN_POR_NOME_UF.get((sem_acento(r["cidade"]), uf))
         c.execute("UPDATE leads SET uf=?, municipio_id=? WHERE id=?", (uf, mun and mun["id"], r["id"]))
     c.execute("CREATE INDEX IF NOT EXISTS ix_leads_mun ON leads(municipio_id)")
+    if "retorno" not in colunas(c, "leads"):
+        c.execute("ALTER TABLE leads ADD COLUMN retorno TEXT")      # data do próximo contato (AAAA-MM-DD)
+    c.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS atividades (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            lead_id TEXT NOT NULL,
+            tipo TEXT NOT NULL,            -- status, nota, whatsapp, ligacao, retorno
+            texto TEXT, criado TEXT
+        );
+        CREATE INDEX IF NOT EXISTS ix_ativ_lead ON atividades(lead_id, id);
+        CREATE TABLE IF NOT EXISTS config (chave TEXT PRIMARY KEY, valor TEXT);
+        CREATE TABLE IF NOT EXISTS listas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, params TEXT NOT NULL, criada TEXT
+        );
+        CREATE TABLE IF NOT EXISTS agendas (
+            busca_id INTEGER PRIMARY KEY,  -- busca usada como modelo
+            dias INTEGER NOT NULL,         -- repete a cada N dias
+            proxima TEXT NOT NULL,         -- quando roda de novo (ISO)
+            ultima_busca INTEGER, criada TEXT
+        );
+        """
+    )
+    if "tags" not in colunas(c, "leads"):
+        c.execute("ALTER TABLE leads ADD COLUMN tags TEXT")           # ",tag1,tag2," (vírgulas nas pontas para LIKE)
+        c.execute("ALTER TABLE leads ADD COLUMN whatsapp_ok INTEGER")  # 1/0 conferido no Zapvu, NULL = deduzido
     # buscas interrompidas quando o servidor caiu
     c.execute("UPDATE buscas SET situacao='erro', erro='O servidor foi reiniciado durante a busca. Rode de novo.' "
               "WHERE situacao IN ('rodando','na_fila')")
@@ -156,6 +194,21 @@ with conectar() as c:
 
 def agora() -> str:
     return datetime.now().isoformat(timespec="seconds")
+
+
+def cfg(chave: str, padrao=None):
+    with conectar() as c:
+        r = c.execute("SELECT valor FROM config WHERE chave=?", (chave,)).fetchone()
+    return json.loads(r["valor"]) if r else padrao
+
+
+def set_cfg(chave: str, valor):
+    with conectar() as c:
+        if valor is None:
+            c.execute("DELETE FROM config WHERE chave=?", (chave,))
+        else:
+            c.execute("INSERT INTO config VALUES (?, ?) ON CONFLICT(chave) DO UPDATE SET valor=excluded.valor",
+                      (chave, json.dumps(valor, ensure_ascii=False)))
 
 
 # ---------------------------------------------------------------- normalização
@@ -239,6 +292,25 @@ CAMPOS_MAPS = ["nome", "categoria", "categorias", "endereco", "bairro", "cidade"
                "link", "horario", "descricao", "reivindicado"]
 
 
+def mudancas(antes, depois: dict) -> str | None:
+    """O que mudou no Google entre uma busca e outra, em texto curto."""
+    m = []
+    fmt = lambda v: f"{v:.1f}".replace(".", ",")  # noqa: E731
+    if so_digitos(antes["telefone"]) != so_digitos(depois["telefone"]):
+        m.append(f"telefone {antes['telefone'] or 'vazio'} → {depois['telefone'] or 'vazio'}")
+    if bool(antes["site"]) != bool(depois["site"]):
+        m.append("criou site" if depois["site"] else "site sumiu")
+    if antes["nota"] and depois["nota"] and abs(antes["nota"] - depois["nota"]) >= 0.1:
+        m.append(f"nota {fmt(antes['nota'])} → {fmt(depois['nota'])}")
+    if (depois["avaliacoes"] or 0) - (antes["avaliacoes"] or 0) >= 5:
+        m.append(f"+{depois['avaliacoes'] - (antes['avaliacoes'] or 0)} avaliações")
+    if not antes["reivindicado"] and depois["reivindicado"]:
+        m.append("o dono assumiu o perfil")
+    if antes["nome"] != depois["nome"]:
+        m.append(f"nome {antes['nome']} → {depois['nome']}")
+    return "; ".join(m) or None
+
+
 def importar(busca_id: int, arquivo: Path, termo_por_input: dict) -> tuple[int, int]:
     """Grava os resultados. Status e observação de leads que já existiam são mantidos."""
     total = novos = 0
@@ -260,12 +332,19 @@ def importar(busca_id: int, arquivo: Path, termo_por_input: dict) -> tuple[int, 
             vistos.add(l["id"])
             total += 1
             termo = termo_por_input.get(r.get("input_id"))
-            existe = c.execute("SELECT emails FROM leads WHERE id=?", (l["id"],)).fetchone()
+            existe = c.execute("SELECT * FROM leads WHERE id=?", (l["id"],)).fetchone()
             if existe:
                 if not l["emails"]:
                     l["emails"] = existe["emails"]  # busca sem e-mail não apaga o que já tinha
+                mesmo_fone = so_digitos(existe["telefone"]) == so_digitos(l["telefone"])
+                ok = existe["whatsapp_ok"] if mesmo_fone else None
+                if ok is not None:  # conferido no Zapvu: vale mais que a dedução pelo número
+                    l["whatsapp"] = existe["whatsapp"]
+                if mudou := mudancas(existe, l):
+                    registrar(c, l["id"], "mudanca", mudou)
                 sets = ", ".join(f"{k}=:{k}" for k in CAMPOS_MAPS)
-                c.execute(f"UPDATE leads SET {sets}, atualizado=:at WHERE id=:id", {**l, "at": agora()})
+                c.execute(f"UPDATE leads SET {sets}, whatsapp_ok=:ok, atualizado=:at WHERE id=:id",
+                          {**l, "ok": ok, "at": agora()})
             else:
                 novos += 1
                 cols = ["id", *CAMPOS_MAPS]
@@ -561,13 +640,15 @@ def criar_busca(nb: NovaBusca):
 @app.get("/api/buscas")
 def listar_buscas():
     with conectar() as c:
-        rows = [dict(r) for r in c.execute("SELECT * FROM buscas ORDER BY id DESC LIMIT 50")]
+        rows = [dict(r) for r in c.execute("SELECT * FROM buscas ORDER BY id DESC LIMIT 100")]
+        agendas = {r["busca_id"]: dict(r) for r in c.execute("SELECT * FROM agendas")}
     for r in rows:
         r["cidades"] = json.loads(r["cidades"] or "[]")
         n_termos = len([t for t in r["termos"].splitlines() if t.strip()])
         r["consultas"] = n_termos * max(1, len(r["cidades"]))
         if r["situacao"] == "rodando":
             r["parcial"] = contar_linhas(DADOS / "buscas" / str(r["id"]) / "resultado.json")
+        r["agenda"] = agendas.get(r["id"])
     return rows
 
 
@@ -606,7 +687,33 @@ def repetir_busca(bid: int):
     return criar_busca(nb)
 
 
+# Score de oportunidade (0-100): quanto mais alto, mais a empresa precisa de ajuda com presença digital
+# e mais fácil é falar com ela. Os pesos podem ser mudados na tela Configurações; a soma vira 0-100.
+CRITERIOS_SCORE = [
+    ("whats", "whatsapp IS NOT NULL", 30, "Tem WhatsApp"),
+    ("sem_site", "site IS NULL", 25, "Não tem site"),
+    ("sem_dono", "COALESCE(reivindicado, 0) = 0", 15, "Perfil do Google sem dono"),
+    ("poucas_aval", "COALESCE(avaliacoes, 0) < 20", 10, "Menos de 20 avaliações"),
+    ("nota_baixa", "nota IS NOT NULL AND nota < 4.2", 10, "Nota abaixo de 4,2"),
+    ("contato_extra", "emails IS NOT NULL OR instagram IS NOT NULL", 10, "Tem e-mail ou Instagram"),
+]
+
+
+def pesos_score() -> dict:
+    salvos = cfg("pesos", {}) or {}
+    return {k: int(salvos.get(k, padrao)) for k, _, padrao, _ in CRITERIOS_SCORE}
+
+
+def score_sql() -> str:
+    pesos = pesos_score()
+    total = sum(pesos.values()) or 1
+    soma = " + ".join(f"(CASE WHEN {cond} THEN {pesos[k]} ELSE 0 END)" for k, cond, _, _ in CRITERIOS_SCORE)
+    return f"CAST(ROUND(({soma}) * 100.0 / {total}) AS INTEGER)"
+
+
 ORDENS = {
+    "score": "score DESC, avaliacoes DESC",
+    "retorno": "retorno IS NULL, retorno",
     "distancia": "distancia IS NULL, distancia",
     "nota_asc": "nota IS NULL, nota",
     "nota_desc": "nota DESC",
@@ -629,8 +736,9 @@ def filtrar(p: dict) -> tuple[str, list]:
         dist = "dist_km(lat, lon, ?, ?)"
         args += [float(lat), float(lon)]
     if q := p.get("q"):
-        where.append("(nome LIKE ? OR categorias LIKE ? OR endereco LIKE ? OR observacao LIKE ?)")
-        args += [f"%{q}%"] * 4
+        where.append("(nome LIKE ? OR categorias LIKE ? OR endereco LIKE ? OR observacao LIKE ? OR tags LIKE ? "
+                     "OR digitos(telefone) LIKE ?)")
+        args += [f"%{q}%"] * 5 + [f"%{so_digitos(q) or q}%"]
     if mids := [int(x) for x in lista_param(p, "municipios") if x.isdigit()]:
         where.append(f"municipio_id IN ({','.join('?' * len(mids))})")
         args += mids
@@ -662,12 +770,35 @@ def filtrar(p: dict) -> tuple[str, list]:
     if v := p.get("busca"):
         where.append("id IN (SELECT lead_id FROM busca_leads WHERE busca_id=?)")
         args.append(int(v))
+    score = score_sql()
+    if v := p.get("score_min"):
+        where.append(f"{score} >= ?")
+        args.append(int(v))
+    if tags := lista_param(p, "tags"):
+        where.append("(" + " OR ".join("tags LIKE ?" for _ in tags) + ")")
+        args += [f"%,{t},%" for t in tags]
+    if p.get("duplicado") == "sim":
+        where.append("digitos(telefone) IN (SELECT digitos(telefone) FROM leads WHERE telefone IS NOT NULL "
+                     "GROUP BY digitos(telefone) HAVING COUNT(*) > 1)")
+    if p.get("mudou") == "7d":
+        where.append("id IN (SELECT lead_id FROM atividades WHERE tipo='mudanca' "
+                     "AND criado >= date('now','localtime','-6 days'))")
+    if p.get("zap_conferido") in ("sim", "nao", "pendente"):
+        where.append({"sim": "whatsapp_ok = 1", "nao": "whatsapp_ok = 0",
+                      "pendente": "whatsapp_ok IS NULL AND telefone IS NOT NULL"}[p["zap_conferido"]])
+    if p.get("retorno") == "pendente":
+        where.append("retorno IS NOT NULL AND retorno <= date('now', 'localtime')")
+    elif p.get("retorno") == "agendado":
+        where.append("retorno IS NOT NULL")
+    if ids := lista_param(p, "ids"):
+        where.append(f"id IN ({','.join('?' * len(ids))})")
+        args += ids
     sql_where = " AND ".join(where)
     if (raio := p.get("raio_km")) and lat and lon:
         sql_where += " AND distancia <= ?"
         args.append(float(raio))
     ordem = ORDENS.get(p.get("ordem") or "", "distancia IS NULL, distancia" if lat else "criado DESC")
-    return f"SELECT *, {dist} AS distancia FROM leads WHERE {sql_where} ORDER BY {ordem}", args
+    return f"SELECT *, {dist} AS distancia, {score} AS score FROM leads WHERE {sql_where} ORDER BY {ordem}", args
 
 
 @app.get("/api/leads")
@@ -686,8 +817,8 @@ def listar_leads(request: Request):
 @app.get("/api/leads.csv")
 def exportar(request: Request):
     sql, args = filtrar(dict(request.query_params))
-    cols = ["nome", "categoria", "termo", "telefone", "whatsapp", "emails", "site", "instagram", "nota",
-            "avaliacoes", "endereco", "bairro", "cidade", "uf", "cep", "distancia", "status",
+    cols = ["nome", "categoria", "termo", "score", "telefone", "whatsapp", "emails", "site", "instagram", "nota",
+            "avaliacoes", "endereco", "bairro", "cidade", "uf", "cep", "distancia", "status", "retorno", "tags",
             "observacao", "link", "lat", "lon"]
     buf = io.StringIO()
     buf.write("﻿")  # Excel reconhece acentos
@@ -698,6 +829,8 @@ def exportar(request: Request):
             linha = []
             for k in cols:
                 v = r[k]
+                if k == "tags" and v:
+                    v = ", ".join(t for t in v.split(",") if t)
                 if isinstance(v, float):
                     casas = {"distancia": 2, "lat": 6, "lon": 6}.get(k, 1)
                     v = f"{v:.{casas}f}".replace(".", ",")
@@ -711,21 +844,156 @@ def exportar(request: Request):
 class Edicao(BaseModel):
     status: str | None = None
     observacao: str | None = None
+    retorno: str | None = None   # "AAAA-MM-DD" marca, "" tira
+    tags: list[str] | None = None
+
+
+class Lote(BaseModel):
+    ids: list[str] = Field(min_length=1, max_length=5000)
+    status: str | None = None
+    tag: str | None = None       # acrescenta esta tag
+
+
+def limpar_tag(t: str) -> str:
+    return re.sub(r"\s+", " ", t.replace(",", " ")).strip().lower()[:40]
+
+
+def tags_texto(tags: list[str]) -> str | None:
+    lista = list(dict.fromkeys(t for t in (limpar_tag(x) for x in tags) if t))
+    return ("," + ",".join(lista) + ",") if lista else None
+
+
+class NovaAtividade(BaseModel):
+    tipo: str = Field(pattern="^(nota|whatsapp|ligacao|email|visita)$")
+    texto: str | None = None
+
+
+NOMES_STATUS = {"novo": "Novo", "contatar": "Contatar", "contatado": "Contatado", "interessado": "Interessado",
+                "cliente": "Cliente", "descartado": "Descartado", "nao_contatar": "Não contatar"}
+
+
+def registrar(c, lead_id: str, tipo: str, texto: str | None):
+    c.execute("INSERT INTO atividades (lead_id, tipo, texto, criado) VALUES (?,?,?,?)", (lead_id, tipo, texto, agora()))
+
+
+def mudar_status(c, lid: str, novo: str):
+    r = c.execute("SELECT status FROM leads WHERE id=?", (lid,)).fetchone()
+    if r and r["status"] != novo:
+        c.execute("UPDATE leads SET status=?, atualizado=? WHERE id=?", (novo, agora(), lid))
+        registrar(c, lid, "status", f"{NOMES_STATUS.get(r['status'], r['status'])} → {NOMES_STATUS[novo]}")
+
+
+def lead_completo(c, lid: str):
+    r = c.execute(f"SELECT *, NULL AS distancia, {score_sql()} AS score FROM leads WHERE id=?", (lid,)).fetchone()
+    if not r:
+        raise HTTPException(404, "Lead não encontrado")
+    return dict(r)
+
+
+@app.post("/api/leads/lote")
+def editar_lote(e: Lote):
+    if e.status is not None and e.status not in STATUS_LEAD:
+        raise HTTPException(400, "Status inválido")
+    tag = limpar_tag(e.tag or "")
+    with conectar() as c:
+        for lid in e.ids:
+            if e.status:
+                mudar_status(c, lid, e.status)
+            if tag:
+                c.execute("UPDATE leads SET tags = COALESCE(tags, ',') || ? || ',' WHERE id=? "
+                          "AND COALESCE(tags, '') NOT LIKE ?", (tag, lid, f"%,{tag},%"))
+    return {"ok": True, "n": len(e.ids)}
+
+
+@app.get("/api/leads/{lid}")
+def ver_lead(lid: str):
+    with conectar() as c:
+        return lead_completo(c, lid)
 
 
 @app.patch("/api/leads/{lid}")
 def editar_lead(lid: str, e: Edicao):
     with conectar() as c:
+        lead_completo(c, lid)
         if e.status is not None:
             if e.status not in STATUS_LEAD:
                 raise HTTPException(400, "Status inválido")
-            c.execute("UPDATE leads SET status=?, atualizado=? WHERE id=?", (e.status, agora(), lid))
+            mudar_status(c, lid, e.status)
         if e.observacao is not None:
             c.execute("UPDATE leads SET observacao=?, atualizado=? WHERE id=?", (e.observacao, agora(), lid))
-        r = c.execute("SELECT * FROM leads WHERE id=?", (lid,)).fetchone()
-    if not r:
-        raise HTTPException(404, "Lead não encontrado")
-    return dict(r)
+        if e.tags is not None:
+            c.execute("UPDATE leads SET tags=?, atualizado=? WHERE id=?", (tags_texto(e.tags), agora(), lid))
+        if e.retorno is not None:
+            data = e.retorno.strip() or None
+            if data and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", data):
+                raise HTTPException(400, "Data de retorno inválida")
+            c.execute("UPDATE leads SET retorno=?, atualizado=? WHERE id=?", (data, agora(), lid))
+            registrar(c, lid, "retorno", f"Retorno marcado para {data[8:]}/{data[5:7]}/{data[:4]}" if data else "Retorno tirado")
+        return lead_completo(c, lid)
+
+
+@app.get("/api/leads/{lid}/atividades")
+def atividades_do_lead(lid: str):
+    with conectar() as c:
+        return [dict(r) for r in c.execute("SELECT * FROM atividades WHERE lead_id=? ORDER BY id DESC LIMIT 200", (lid,))]
+
+
+@app.post("/api/leads/{lid}/atividades")
+def nova_atividade(lid: str, a: NovaAtividade):
+    with conectar() as c:
+        lead_completo(c, lid)
+        registrar(c, lid, a.tipo, (a.texto or "").strip() or None)
+    return {"ok": True}
+
+
+@app.get("/api/painel")
+def painel():
+    """Números para a tela inicial."""
+    SCORE_SQL = score_sql()
+    with conectar() as c:
+        um = lambda sql, *a: c.execute(sql, a).fetchone()[0] or 0  # noqa: E731
+        ativos = "status NOT IN ('descartado','nao_contatar')"
+        k = {
+            "total": um("SELECT COUNT(*) FROM leads"),
+            "whats": um("SELECT COUNT(*) FROM leads WHERE whatsapp IS NOT NULL"),
+            "sem_site": um("SELECT COUNT(*) FROM leads WHERE site IS NULL"),
+            "sem_dono": um("SELECT COUNT(*) FROM leads WHERE COALESCE(reivindicado,0)=0"),
+            "quentes": um(f"SELECT COUNT(*) FROM leads WHERE {SCORE_SQL} >= 70 AND status IN ('novo','contatar')"),
+            "trabalhados": um("SELECT COUNT(*) FROM leads WHERE status IN ('contatado','interessado','cliente')"),
+            "clientes": um("SELECT COUNT(*) FROM leads WHERE status='cliente'"),
+            "novos_7d": um("SELECT COUNT(*) FROM leads WHERE criado >= date('now','localtime','-6 days')"),
+            "duplicados": um("SELECT COUNT(*) FROM leads WHERE digitos(telefone) IN (SELECT digitos(telefone) FROM leads "
+                             "WHERE telefone IS NOT NULL GROUP BY 1 HAVING COUNT(*) > 1)"),
+            "mudancas_7d": um("SELECT COUNT(DISTINCT lead_id) FROM atividades WHERE tipo='mudanca' "
+                              "AND criado >= date('now','localtime','-6 days')"),
+            "zap_pendente": um("SELECT COUNT(*) FROM leads WHERE whatsapp_ok IS NULL AND telefone IS NOT NULL"),
+            "retornos_pendentes": um(f"SELECT COUNT(*) FROM leads WHERE retorno <= date('now','localtime') AND {ativos} "
+                                     "AND status <> 'cliente'"),
+        }
+        status = {r[0]: r[1] for r in c.execute("SELECT status, COUNT(*) FROM leads GROUP BY status")}
+        dias = {r[0]: r[1] for r in c.execute(
+            "SELECT substr(criado,1,10), COUNT(*) FROM leads WHERE criado >= date('now','localtime','-29 days') GROUP BY 1")}
+        hoje = datetime.now().date()
+        por_dia = [{"dia": (d := (hoje - timedelta(days=29 - i)).isoformat()), "n": dias.get(d, 0)} for i in range(30)]
+        categorias = [dict(r) for r in c.execute(
+            f"SELECT categoria AS nome, COUNT(*) AS n, ROUND(AVG({SCORE_SQL})) AS score FROM leads "
+            "WHERE categoria IS NOT NULL GROUP BY categoria ORDER BY n DESC LIMIT 8")]
+        cidades = [dict(r) for r in c.execute(
+            "SELECT cidade AS nome, uf, COUNT(*) AS n FROM leads WHERE cidade IS NOT NULL "
+            "GROUP BY cidade, uf ORDER BY n DESC LIMIT 8")]
+        faixas = [dict(r) for r in c.execute(
+            f"SELECT MIN(({SCORE_SQL}) / 20, 4) AS faixa, COUNT(*) AS n FROM leads GROUP BY 1 ORDER BY 1")]
+        retornos = [dict(r) for r in c.execute(
+            f"SELECT id, nome, categoria, cidade, uf, retorno, status, whatsapp, telefone, {SCORE_SQL} AS score "
+            f"FROM leads WHERE retorno IS NOT NULL AND {ativos} AND status <> 'cliente' ORDER BY retorno LIMIT 8")]
+        quentes = [dict(r) for r in c.execute(
+            f"SELECT id, nome, categoria, cidade, uf, status, whatsapp, {SCORE_SQL} AS score FROM leads "
+            f"WHERE status IN ('novo','contatar') ORDER BY score DESC, avaliacoes DESC LIMIT 8")]
+        recentes = [dict(r) for r in c.execute(
+            "SELECT a.*, l.nome FROM atividades a JOIN leads l ON l.id=a.lead_id ORDER BY a.id DESC LIMIT 10")]
+    return {"kpis": k, "funil": [{"id": s, "n": status.get(s, 0)} for s in STATUS_LEAD], "por_dia": por_dia,
+            "categorias": categorias, "cidades": cidades, "faixas": faixas, "retornos": retornos,
+            "quentes": quentes, "atividades": recentes}
 
 
 @app.get("/api/opcoes")
@@ -739,4 +1007,230 @@ def opcoes():
             "SELECT categoria AS nome, COUNT(*) AS n FROM leads WHERE categoria IS NOT NULL "
             "GROUP BY categoria ORDER BY n DESC")]
         status = {r[0]: r[1] for r in c.execute("SELECT status, COUNT(*) FROM leads GROUP BY status")}
-    return {"cidades": cidades, "categorias": categorias, "status": [{"id": s, "n": status.get(s, 0)} for s in STATUS_LEAD]}
+        tags: dict[str, int] = {}
+        for (t,) in c.execute("SELECT tags FROM leads WHERE tags IS NOT NULL"):
+            for x in t.split(","):
+                if x:
+                    tags[x] = tags.get(x, 0) + 1
+    return {"cidades": cidades, "categorias": categorias,
+            "status": [{"id": s, "n": status.get(s, 0)} for s in STATUS_LEAD],
+            "tags": [{"nome": k, "n": n} for k, n in sorted(tags.items(), key=lambda x: (-x[1], x[0]))]}
+
+
+# ---------------------------------------------------------------- listas salvas
+
+class NovaLista(BaseModel):
+    nome: str = Field(min_length=1, max_length=80)
+    params: str = Field(max_length=4000)  # query string dos filtros
+
+
+@app.get("/api/listas")
+def listar_listas():
+    with conectar() as c:
+        rows = [dict(r) for r in c.execute("SELECT * FROM listas ORDER BY nome COLLATE NOCASE")]
+        for r in rows:
+            p = dict(urllib.parse.parse_qsl(r["params"]))
+            p.pop("ordem", None)
+            sql, args = filtrar(p)
+            r["n"] = c.execute(f"SELECT COUNT(*) FROM ({sql})", args).fetchone()[0]
+    return rows
+
+
+@app.post("/api/listas")
+def criar_lista(l: NovaLista):
+    with conectar() as c:
+        cur = c.execute("INSERT INTO listas (nome, params, criada) VALUES (?,?,?)", (l.nome.strip(), l.params, agora()))
+    return {"id": cur.lastrowid}
+
+
+@app.delete("/api/listas/{lid}")
+def apagar_lista(lid: int):
+    with conectar() as c:
+        c.execute("DELETE FROM listas WHERE id=?", (lid,))
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------- buscas agendadas
+
+class Agenda(BaseModel):
+    dias: int = Field(ge=0, le=90)  # 0 desliga
+
+
+@app.put("/api/buscas/{bid}/agenda")
+def agendar_busca(bid: int, a: Agenda):
+    with conectar() as c:
+        if not c.execute("SELECT 1 FROM buscas WHERE id=?", (bid,)).fetchone():
+            raise HTTPException(404, "Busca não encontrada")
+        c.execute("DELETE FROM agendas WHERE busca_id=?", (bid,))
+        if a.dias:
+            proxima = (datetime.now() + timedelta(days=a.dias)).replace(hour=7, minute=0, second=0)
+            c.execute("INSERT INTO agendas (busca_id, dias, proxima, criada) VALUES (?,?,?,?)",
+                      (bid, a.dias, proxima.isoformat(timespec="seconds"), agora()))
+    return {"ok": True}
+
+
+def vigia_agendas():
+    """Roda as buscas agendadas na hora marcada. A fila (FILA_LOCK) garante uma busca por vez."""
+    while True:
+        time.sleep(60)
+        try:
+            with conectar() as c:
+                vencidas = [dict(r) for r in c.execute("SELECT * FROM agendas WHERE proxima <= ?", (agora(),))]
+            for a in vencidas:
+                nova = repetir_busca(a["busca_id"])["id"]
+                proxima = datetime.fromisoformat(a["proxima"])
+                while proxima <= datetime.now():
+                    proxima += timedelta(days=a["dias"])
+                with conectar() as c:
+                    c.execute("UPDATE agendas SET proxima=?, ultima_busca=? WHERE busca_id=?",
+                              (proxima.isoformat(timespec="seconds"), nova, a["busca_id"]))
+        except Exception as e:  # noqa: BLE001
+            print("agenda:", e)
+
+
+threading.Thread(target=vigia_agendas, daemon=True).start()
+
+
+# ---------------------------------------------------------------- configurações
+
+class ConfigZapvu(BaseModel):
+    url: str | None = None
+    instancia: str | None = None
+    chave: str | None = None   # None mantém; "" apaga
+
+
+class NovaConfig(BaseModel):
+    pesos: dict[str, int] | None = None
+    zapvu: ConfigZapvu | None = None
+
+
+def zapvu_cfg() -> dict:
+    z = cfg("zapvu", {}) or {}
+    z.setdefault("url", "https://api.zapvu.com.br/v1")
+    return z
+
+
+@app.get("/api/config")
+def ver_config():
+    pesos = pesos_score()
+    z = zapvu_cfg()
+    chave = z.get("chave") or ""
+    return {
+        "pesos": [{"chave": k, "texto": t, "peso": pesos[k], "padrao": p} for k, _, p, t in CRITERIOS_SCORE],
+        "zapvu": {"url": z["url"], "instancia": z.get("instancia") or "",
+                  "chave_fim": ("…" + chave[-4:]) if chave else "", "ativo": bool(chave and z.get("instancia"))},
+    }
+
+
+@app.put("/api/config")
+def salvar_config(n: NovaConfig):
+    if n.pesos is not None:
+        validos = {k for k, *_ in CRITERIOS_SCORE}
+        pesos = {k: max(0, min(100, int(v))) for k, v in n.pesos.items() if k in validos}
+        if not sum(pesos.values()):
+            raise HTTPException(400, "Pelo menos um critério precisa ter peso maior que zero.")
+        set_cfg("pesos", pesos)
+    if n.zapvu is not None:
+        z = zapvu_cfg()
+        if n.zapvu.url is not None:
+            url = n.zapvu.url.strip().rstrip("/")
+            if url and not re.match(r"^https?://", url):
+                raise HTTPException(400, "O endereço da API precisa começar com https://")
+            z["url"] = url or "https://api.zapvu.com.br/v1"
+        if n.zapvu.instancia is not None:
+            z["instancia"] = n.zapvu.instancia.strip()
+        if n.zapvu.chave is not None:
+            z["chave"] = n.zapvu.chave.strip()
+        set_cfg("zapvu", z)
+    return ver_config()
+
+
+# ---------------------------------------------------------------- Zapvu (WhatsApp de verdade)
+
+def zapvu(metodo: str, caminho: str, corpo: dict | None = None, idem: str | None = None):
+    z = zapvu_cfg()
+    if not (z.get("chave") and z.get("instancia")):
+        raise HTTPException(400, "Configure o Zapvu em Configurações (instância e chave).")
+    url = f"{z['url'].rstrip('/')}/instances/{urllib.parse.quote(z['instancia'])}{caminho}"
+    cab = {"Authorization": f"Bearer {z['chave']}", "Content-Type": "application/json", "User-Agent": "base-leads/1.0"}
+    if idem:
+        cab["Idempotency-Key"] = idem
+    req = urllib.request.Request(url, method=metodo, headers=cab,
+                                 data=json.dumps(corpo).encode() if corpo is not None else None)
+    try:
+        with urllib.request.urlopen(req, timeout=25) as r:
+            return json.loads(r.read().decode() or "{}")
+    except urllib.error.HTTPError as e:
+        try:
+            msg = json.loads(e.read().decode()).get("error") or e.reason
+        except Exception:  # noqa: BLE001
+            msg = e.reason
+        if e.code in (401, 403):
+            msg = "chave recusada. Confira a chave zv_ e se ela é desta instância."
+        elif e.code == 404:
+            msg = "instância não encontrada. Confira o ID."
+        raise HTTPException(502, f"Zapvu: {msg}")
+    except (urllib.error.URLError, TimeoutError) as e:
+        raise HTTPException(502, f"Zapvu fora do ar ou endereço errado ({getattr(e, 'reason', e)}).")
+
+
+@app.post("/api/zapvu/testar")
+def testar_zapvu():
+    j = zapvu("GET", "")
+    return {"nome": j.get("name"), "telefone": j.get("phone"), "status": j.get("status"),
+            "conectado": bool(j.get("connected"))}
+
+
+class Envio(BaseModel):
+    texto: str = Field(min_length=1, max_length=4000)
+    modelo: str | None = None
+
+
+@app.post("/api/leads/{lid}/enviar")
+def enviar_whatsapp(lid: str, e: Envio):
+    """Uma mensagem por vez, disparada pela pessoa. Sem envio em massa, para não arriscar o número."""
+    with conectar() as c:
+        l = lead_completo(c, lid)
+    numero = l["whatsapp"] or ("55" + so_digitos(l["telefone"])[-11:] if l["telefone"] else None)
+    if not numero:
+        raise HTTPException(400, "Essa empresa não tem telefone.")
+    r = zapvu("POST", "/messages/text", {"to": numero, "text": e.texto.strip()}, idem=f"base-leads-{uuid.uuid4()}")
+    with conectar() as c:
+        registrar(c, lid, "whatsapp", f"Enviado pelo Zapvu{f' (modelo {e.modelo})' if e.modelo else ''}: {e.texto.strip()[:300]}")
+        if l["status"] in ("novo", "contatar"):
+            mudar_status(c, lid, "contatado")
+        return {"fila": r.get("id"), "lead": lead_completo(c, lid)}
+
+
+class Conferir(BaseModel):
+    ids: list[str] = Field(min_length=1, max_length=50)
+
+
+@app.post("/api/leads/conferir-whatsapp")
+def conferir_whatsapp(cf: Conferir):
+    """Pergunta ao WhatsApp (via Zapvu) quais números têm conta. Até 50 por vez; use com moderação."""
+    with conectar() as c:
+        marcas = ",".join("?" * len(cf.ids))
+        leads = [dict(r) for r in c.execute(f"SELECT id, telefone FROM leads WHERE id IN ({marcas}) "
+                                            "AND telefone IS NOT NULL", cf.ids)]
+    por_num = {}
+    for l in leads:
+        d = so_digitos(l["telefone"])
+        d = d[2:] if d.startswith("55") and len(d) > 11 else d
+        if len(d) in (10, 11):
+            por_num.setdefault("55" + d, []).append(l["id"])
+    if not por_num:
+        return {"conferidos": 0, "com_whatsapp": 0}
+    res = zapvu("POST", "/contacts/check", {"phones": list(por_num)}).get("results", [])
+    com = 0
+    with conectar() as c:
+        for r in res:
+            num = so_digitos(r.get("query"))
+            for lid in por_num.get(num, []):
+                existe = bool(r.get("exists"))
+                com += existe
+                zap = so_digitos(r.get("jid", "").split("@")[0]) or num
+                c.execute("UPDATE leads SET whatsapp=?, whatsapp_ok=?, atualizado=? WHERE id=?",
+                          (zap if existe else None, int(existe), agora(), lid))
+                registrar(c, lid, "conferido", "WhatsApp confirmado" if existe else "Número sem WhatsApp")
+    return {"conferidos": len(res), "com_whatsapp": com}

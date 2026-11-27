@@ -1,393 +1,1031 @@
 <!doctype html>
-<html lang="pt-BR">
+<html lang="pt-BR" data-theme="dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Base de Leads</title>
+<script>document.documentElement.dataset.theme = localStorage.getItem("tema") || "dark";</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
   :root {
-    --fundo: #eaeef0;
-    --superficie: #ffffff;
-    --texto: #17232b;
-    --apagado: #5a6b75;
-    --linha: #d3dce1;
-    --linha-fraca: #edf1f3;
-    --destaque: #0b6e4f;
-    --destaque-escuro: #095c42;
-    --destaque-claro: #e1f1ea;
-    --alerta: #b3401c;
-    --fonte: "Manrope", system-ui, sans-serif;
-    --mono: "IBM Plex Mono", ui-monospace, monospace;
+    --fonte: "Onest", system-ui, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, monospace;
+    --r-sm: 6px; --r: 10px; --r-lg: 14px;
+    --sidebar: 232px; --topbar: 60px;
+  }
+  [data-theme=dark] {
+    color-scheme: dark;
+    --fundo: #0c111c;
+    --sup: #121a29;
+    --sup-2: #182134;
+    --sup-3: #1f2a40;
+    --linha: #243049;
+    --linha-forte: #33415f;
+    --texto: #e6ebf5;
+    --apagado: #8794ad;
+    --fraco: #5d6a85;
+    --acento: #8b7bff;
+    --acento-forte: #a597ff;
+    --acento-fundo: rgba(139,123,255,.14);
+    --acento-tinta: #fff;
+    --ok: #53c556; --alerta: #f0a33a; --perigo: #f07070;
+    --sombra: 0 18px 48px rgba(0,0,0,.45);
+    --st-novo: #8794ad; --st-contatar: #338ced; --st-contatado: #d28e05; --st-interessado: #e24d8b;
+    --st-cliente: #0aac23; --st-descartado: #4f5b73; --st-nao_contatar: #eb6263;
+  }
+  [data-theme=light] {
+    color-scheme: light;
+    --fundo: #f2f4f9;
+    --sup: #ffffff;
+    --sup-2: #f7f8fc;
+    --sup-3: #eceff6;
+    --linha: #e1e5ee;
+    --linha-forte: #c9d0de;
+    --texto: #121a2b;
+    --apagado: #5a6680;
+    --fraco: #8b95aa;
+    --acento: #5b47e0;
+    --acento-forte: #4a37cc;
+    --acento-fundo: rgba(91,71,224,.1);
+    --acento-tinta: #fff;
+    --ok: #13802a; --alerta: #b36b00; --perigo: #c93535;
+    --sombra: 0 18px 48px rgba(18,26,43,.14);
+    --st-novo: #6b7790; --st-contatar: #257de0; --st-contatado: #e09a00; --st-interessado: #d9437f;
+    --st-cliente: #008a17; --st-descartado: #aab3c5; --st-nao_contatar: #ec4647;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; }
-  body { font: 14px/1.45 var(--fonte); color: var(--texto); background: var(--fundo); }
+  body { font: 14px/1.5 var(--fonte); color: var(--texto); background: var(--fundo); -webkit-font-smoothing: antialiased; }
   button, input, select, textarea { font: inherit; color: inherit; }
   [hidden] { display: none !important; }
-  a { color: var(--destaque); }
-
-  /* topo */
-  header { display: flex; align-items: center; gap: 24px; padding: 0 20px; height: 54px; background: var(--texto); color: #fff; position: sticky; top: 0; z-index: 1100; }
-  header h1 { font-size: 16px; margin: 0; }
-  nav { display: flex; gap: 4px; height: 100%; }
-  nav a { color: #b9c6cd; text-decoration: none; display: flex; align-items: center; padding: 0 12px; border-bottom: 3px solid transparent; font-weight: 600; }
-  nav a[aria-current=page] { color: #fff; border-color: #4fc39a; }
-  nav a .n { font-family: var(--mono); font-size: 12px; margin-left: 6px; color: #8fa1ab; }
-  header .base { margin-left: auto; color: #8fa1ab; font-size: 12.5px; }
-
-  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--apagado); margin: 0 0 10px; font-weight: 700; }
-  label, .rotulo { display: block; font-size: 12.5px; color: var(--apagado); margin: 0 0 5px; font-weight: 600; }
-  input[type=text], input[type=number], input[type=search], select, textarea { width: 100%; border: 1px solid var(--linha); border-radius: 6px; padding: 8px 10px; background: #fff; min-height: 40px; }
-  input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px solid var(--destaque); outline-offset: 1px; }
-  .dica { font-size: 12.5px; color: var(--apagado); margin: 6px 0 0; }
-  .btn { border: 1px solid var(--linha); background: #fff; border-radius: 6px; padding: 8px 14px; cursor: pointer; min-height: 40px; white-space: nowrap; }
-  .btn:hover { border-color: var(--apagado); }
-  .btn-principal { background: var(--destaque); border-color: var(--destaque); color: #fff; font-weight: 700; }
-  .btn-principal:hover { background: var(--destaque-escuro); border-color: var(--destaque-escuro); }
-  .btn-principal:disabled { opacity: .45; cursor: not-allowed; }
-  .link { color: var(--destaque); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; background: none; border: 0; padding: 0; font-size: inherit; }
-  .erro { color: var(--alerta); font-size: 13px; }
-  .sub { color: var(--apagado); font-size: 12.5px; }
+  a { color: var(--acento-forte); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  svg.i { width: 16px; height: 16px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
   .num { font-variant-numeric: tabular-nums; }
+  .sub { color: var(--apagado); font-size: 12.5px; }
+  .erro { color: var(--perigo); font-size: 13px; }
+  kbd { font: 500 11px var(--mono); border: 1px solid var(--linha-forte); border-bottom-width: 2px; border-radius: 4px; padding: 1px 5px; color: var(--apagado); background: var(--sup-2); }
+  :focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
 
-  /* chips */
+  /* ---------- controles */
+  label, .rotulo { display: block; font-size: 12.5px; color: var(--apagado); margin: 0 0 6px; font-weight: 500; }
+  input[type=text], input[type=number], input[type=search], input[type=date], input[type=password], select, textarea {
+    width: 100%; border: 1px solid var(--linha); border-radius: var(--r-sm); padding: 8px 11px; background: var(--sup-2); min-height: 38px; transition: border-color .12s;
+  }
+  input:hover, select:hover, textarea:hover { border-color: var(--linha-forte); }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--acento); box-shadow: 0 0 0 3px var(--acento-fundo); }
+  textarea { resize: vertical; line-height: 1.5; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid var(--linha); background: var(--sup-2); border-radius: var(--r-sm); padding: 7px 13px; cursor: pointer; min-height: 36px; white-space: nowrap; font-weight: 500; transition: background .12s, border-color .12s; }
+  .btn:hover { border-color: var(--linha-forte); background: var(--sup-3); }
+  .btn-pri { background: var(--acento); border-color: var(--acento); color: var(--acento-tinta); font-weight: 600; }
+  .btn-pri:hover { background: var(--acento-forte); border-color: var(--acento-forte); }
+  .btn-pri:disabled { opacity: .4; cursor: not-allowed; }
+  .btn-zap { background: #128c4a; border-color: #128c4a; color: #fff; font-weight: 600; }
+  .btn-zap:hover { background: #0f7a40; border-color: #0f7a40; }
+  .btn-sm { min-height: 30px; padding: 4px 10px; font-size: 13px; }
+  .btn-ico { padding: 0; width: 36px; }
+  .link { color: var(--acento-forte); cursor: pointer; background: none; border: 0; padding: 0; font-size: inherit; font-weight: 500; }
+  .link:hover { text-decoration: underline; }
+  .link-perigo { color: var(--perigo); }
+
   .chips { display: flex; flex-wrap: wrap; gap: 6px; }
-  .chip { display: inline-flex; align-items: center; gap: 4px; background: var(--destaque-claro); color: #0a4a36; border-radius: 999px; padding: 4px 4px 4px 12px; font-size: 13px; font-weight: 600; }
-  .chip button { border: 0; background: none; width: 26px; height: 26px; border-radius: 50%; cursor: pointer; color: inherit; font-size: 16px; line-height: 1; }
-  .chip button:hover { background: rgba(11,110,79,.15); }
-  .campo-chips { border: 1px solid var(--linha); border-radius: 6px; padding: 6px; background: #fff; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-height: 46px; cursor: text; }
-  .campo-chips:focus-within { outline: 2px solid var(--destaque); outline-offset: 1px; }
-  .campo-chips input { border: 0; outline: 0; flex: 1; min-width: 160px; min-height: 32px; padding: 0 6px; }
-  .sugestoes { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-  .sugestoes button { border: 1px dashed var(--linha); background: none; border-radius: 999px; padding: 4px 10px; font-size: 12.5px; cursor: pointer; color: var(--apagado); min-height: 30px; }
-  .sugestoes button:hover { border-color: var(--destaque); color: var(--destaque); }
+  .chip { display: inline-flex; align-items: center; gap: 2px; background: var(--acento-fundo); color: var(--texto); border: 1px solid color-mix(in srgb, var(--acento) 35%, transparent); border-radius: 999px; padding: 3px 3px 3px 11px; font-size: 13px; font-weight: 500; }
+  .chip button { border: 0; background: none; width: 24px; height: 24px; border-radius: 50%; cursor: pointer; color: var(--apagado); font-size: 15px; line-height: 1; }
+  .chip button:hover { background: var(--acento-fundo); color: var(--texto); }
+  .campo-chips { border: 1px solid var(--linha); border-radius: var(--r-sm); padding: 6px; background: var(--sup-2); display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-height: 46px; cursor: text; }
+  .campo-chips:focus-within { border-color: var(--acento); box-shadow: 0 0 0 3px var(--acento-fundo); }
+  .campo-chips input { border: 0 !important; box-shadow: none !important; background: none !important; flex: 1; min-width: 160px; min-height: 32px !important; padding: 0 6px !important; }
+  .sugestoes { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .sugestoes button { border: 1px dashed var(--linha-forte); background: none; border-radius: 999px; padding: 3px 11px; font-size: 12.5px; cursor: pointer; color: var(--apagado); min-height: 28px; }
+  .sugestoes button:hover { border-style: solid; border-color: var(--acento); color: var(--texto); }
 
-  /* ============ tela de busca */
-  .tela-busca { max-width: 1160px; margin: 0 auto; padding: 28px 20px 60px; display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 28px; align-items: start; }
-  .passo { background: var(--superficie); border: 1px solid var(--linha); border-radius: 8px; padding: 18px 20px; margin-bottom: 14px; }
-  .passo h3 { margin: 0 0 4px; font-size: 15px; }
-  .passo > .sub { margin: 0 0 14px; }
-  .abas { display: inline-flex; border: 1px solid var(--linha); border-radius: 6px; overflow: hidden; margin-bottom: 14px; }
-  .abas button { border: 0; background: #fff; padding: 8px 16px; cursor: pointer; min-height: 40px; }
-  .abas button[aria-pressed=true] { background: var(--texto); color: #fff; }
+  .pilulas { display: flex; flex-wrap: wrap; gap: 6px; }
+  .pilulas button { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--linha); background: var(--sup-2); border-radius: 999px; padding: 4px 11px; font-size: 13px; cursor: pointer; min-height: 30px; }
+  .pilulas button:hover { border-color: var(--linha-forte); }
+  .pilulas button[aria-pressed=true] { background: var(--acento-fundo); border-color: var(--acento); color: var(--texto); }
+  .pilulas .n { font-size: 11.5px; color: var(--apagado); font-variant-numeric: tabular-nums; }
+  .ponto { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex: none; }
+
+  /* ---------- shell */
+  .app { display: grid; grid-template-columns: var(--sidebar) minmax(0, 1fr); height: 100vh; }
+  .sidebar { background: var(--sup); border-right: 1px solid var(--linha); display: flex; flex-direction: column; min-height: 0; z-index: 1150; }
+  .marca { display: flex; align-items: center; gap: 10px; height: var(--topbar); padding: 0 18px; border-bottom: 1px solid var(--linha); }
+  .marca svg { width: 28px; height: 28px; }
+  .marca b { font-size: 15.5px; font-weight: 700; letter-spacing: -.01em; }
+  .marca span { display: block; font-size: 11.5px; color: var(--apagado); font-weight: 400; margin-top: -2px; }
+  .nav { padding: 12px 10px; display: flex; flex-direction: column; gap: 2px; }
+  .nav a { display: flex; align-items: center; gap: 11px; padding: 8px 10px; border-radius: var(--r-sm); color: var(--apagado); font-weight: 500; text-decoration: none; position: relative; }
+  .nav a:hover { background: var(--sup-2); color: var(--texto); }
+  .nav a[aria-current=page] { background: var(--acento-fundo); color: var(--texto); }
+  .nav a[aria-current=page] svg { color: var(--acento-forte); }
+  .nav .cont { margin-left: auto; font-size: 11.5px; color: var(--fraco); font-variant-numeric: tabular-nums; }
+  .nav .vivo { margin-left: auto; width: 8px; height: 8px; border-radius: 50%; background: var(--acento); box-shadow: 0 0 0 0 var(--acento); animation: pulso 1.8s infinite; }
+  @keyframes pulso { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--acento) 60%, transparent); } 70% { box-shadow: 0 0 0 7px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
+  .nav-sep { height: 1px; background: var(--linha); margin: 10px 8px; }
+  .sb-pe { margin-top: auto; padding: 14px; border-top: 1px solid var(--linha); display: flex; flex-direction: column; gap: 10px; }
+  .sb-base { font-size: 12.5px; color: var(--apagado); line-height: 1.6; }
+  .sb-base b { color: var(--texto); font-weight: 600; }
+  .sb-acoes { display: flex; gap: 6px; }
+  .sb-acoes .btn { flex: 1; }
+
+  .principal { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+  .topbar { height: var(--topbar); flex: none; display: flex; align-items: center; gap: 14px; padding: 0 22px; border-bottom: 1px solid var(--linha); background: color-mix(in srgb, var(--fundo) 85%, transparent); backdrop-filter: blur(8px); }
+  .topbar h1 { font-size: 17px; font-weight: 650; margin: 0; letter-spacing: -.01em; }
+  .topbar .sub { margin-left: 2px; }
+  .topbar .dir { margin-left: auto; display: flex; gap: 10px; align-items: center; }
+  .procurar { display: inline-flex; align-items: center; gap: 10px; width: 260px; border: 1px solid var(--linha); background: var(--sup); border-radius: var(--r-sm); padding: 6px 8px 6px 11px; color: var(--fraco); cursor: pointer; min-height: 36px; }
+  .procurar:hover { border-color: var(--linha-forte); color: var(--apagado); }
+  .procurar kbd { margin-left: auto; }
+  .ativa { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--apagado); border: 1px solid var(--linha); border-radius: 999px; padding: 4px 12px 4px 10px; background: var(--sup); text-decoration: none !important; }
+  .ativa b { color: var(--texto); font-weight: 600; }
+  .ativa .vivo { width: 8px; height: 8px; border-radius: 50%; background: var(--acento); animation: pulso 1.8s infinite; }
+  .menu-mob { display: none; }
+  .vista { flex: 1; min-height: 0; overflow: auto; }
+
+  /* ---------- cartões e seções */
+  .bloco { background: var(--sup); border: 1px solid var(--linha); border-radius: var(--r); }
+  .bloco-topo { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 14px 16px 0; }
+  .bloco-topo h3 { margin: 0; font-size: 14px; font-weight: 600; }
+  .bloco-corpo { padding: 14px 16px 16px; }
+
+  /* ---------- painel */
+  .painel { padding: 22px; display: grid; gap: 16px; grid-template-columns: repeat(12, minmax(0, 1fr)); max-width: 1500px; }
+  .kpis { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); background: var(--sup); border: 1px solid var(--linha); border-radius: var(--r); overflow: hidden; }
+  .kpi { padding: 16px 18px; border-left: 1px solid var(--linha); display: flex; flex-direction: column; gap: 2px; text-decoration: none !important; color: inherit; }
+  .kpi:first-child { border-left: 0; }
+  a.kpi:hover { background: var(--sup-2); }
+  .kpi .rot { font-size: 12.5px; color: var(--apagado); }
+  .kpi .val { font-size: 28px; font-weight: 650; letter-spacing: -.02em; line-height: 1.15; }
+  .kpi .det { font-size: 12px; color: var(--fraco); }
+  .kpi.destaque .val { color: var(--acento-forte); }
+  .c8 { grid-column: span 8; } .c4 { grid-column: span 4; } .c6 { grid-column: span 6; } .c12 { grid-column: 1 / -1; }
+  .grafico-dias { position: relative; }
+  .grafico-dias svg { display: block; width: 100%; height: 190px; }
+  .dica-graf { position: absolute; pointer-events: none; background: var(--sup-3); border: 1px solid var(--linha-forte); border-radius: var(--r-sm); padding: 5px 9px; font-size: 12.5px; white-space: nowrap; box-shadow: var(--sombra); transform: translate(-50%, -100%); z-index: 3; }
+  .barras-h { display: flex; flex-direction: column; gap: 9px; }
+  .bh { display: grid; grid-template-columns: 112px minmax(0, 1fr) 56px; gap: 10px; align-items: center; font-size: 13px; }
+  .bh .nome { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; align-items: center; gap: 7px; }
+  .bh .trilho { height: 10px; background: var(--sup-3); border-radius: 0 4px 4px 0; overflow: hidden; }
+  .bh .trilho i { display: block; height: 100%; border-radius: 0 4px 4px 0; min-width: 2px; }
+  .bh .v { text-align: right; font-variant-numeric: tabular-nums; }
+  .bh .v small { color: var(--fraco); font-size: 11.5px; }
+  .linhas-lead { display: flex; flex-direction: column; }
+  .ll { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 12px; align-items: center; padding: 9px 0; border-top: 1px solid var(--linha); cursor: pointer; }
+  .ll:first-child { border-top: 0; }
+  .ll:hover .t { color: var(--acento-forte); }
+  .ll .t { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ll .sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .vazio-bloco { color: var(--apagado); font-size: 13px; padding: 18px 0 6px; }
+  .boas-vindas { grid-column: 1 / -1; padding: 44px; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 40px; align-items: center; }
+  .boas-vindas h2 { font-size: 30px; line-height: 1.15; letter-spacing: -.025em; margin: 0 0 12px; font-weight: 700; max-width: 18ch; }
+  .boas-vindas p { color: var(--apagado); max-width: 52ch; margin: 0 0 22px; font-size: 15px; }
+  .boas-vindas ol { margin: 0; padding: 0; list-style: none; counter-reset: p; display: flex; flex-direction: column; gap: 14px; }
+  .boas-vindas li { counter-increment: p; display: grid; grid-template-columns: 30px 1fr; gap: 12px; color: var(--apagado); }
+  .boas-vindas li::before { content: counter(p); width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--linha-forte); display: grid; place-items: center; font-size: 13px; color: var(--texto); font-weight: 600; }
+  .boas-vindas li b { color: var(--texto); display: block; font-weight: 600; }
+
+  /* ---------- score */
+  .score { display: inline-flex; align-items: center; justify-content: center; min-width: 34px; height: 22px; padding: 0 6px; border-radius: 5px; font-size: 12px; font-weight: 650; font-variant-numeric: tabular-nums; }
+  .score.s3 { background: var(--acento); color: var(--acento-tinta); }
+  .score.s2 { background: var(--acento-fundo); color: var(--acento-forte); }
+  .score.s1 { background: var(--sup-3); color: var(--apagado); }
+
+  /* ---------- nova busca */
+  .tela-busca { max-width: 1180px; padding: 24px 22px 60px; display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 22px; align-items: start; }
+  .passo { padding: 18px 20px; margin-bottom: 14px; }
+  .passo-topo { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 14px; }
+  .passo-n { width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--linha-forte); display: grid; place-items: center; font-size: 12.5px; font-weight: 600; flex: none; margin-top: 1px; }
+  .passo h3 { margin: 0; font-size: 15px; font-weight: 600; }
+  .passo .sub { margin: 2px 0 0; }
+  .abas { display: inline-flex; border: 1px solid var(--linha); border-radius: var(--r-sm); padding: 3px; margin-bottom: 14px; background: var(--sup-2); gap: 2px; }
+  .abas button { border: 0; background: none; padding: 6px 14px; cursor: pointer; min-height: 32px; border-radius: 4px; color: var(--apagado); font-weight: 500; }
+  .abas button[aria-pressed=true] { background: var(--sup-3); color: var(--texto); box-shadow: 0 1px 0 var(--linha-forte); }
   .seletor { position: relative; }
-  .lista-opcoes { position: absolute; left: 0; right: 0; top: calc(100% + 4px); background: #fff; border: 1px solid var(--linha); border-radius: 6px; box-shadow: 0 10px 28px rgba(23,35,43,.12); z-index: 1200; max-height: 340px; overflow-y: auto; }
-  .opcao { padding: 9px 12px; cursor: pointer; display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
-  .opcao[aria-selected=true], .opcao:hover { background: var(--destaque-claro); }
+  .lista-opcoes { position: absolute; left: 0; right: 0; top: calc(100% + 6px); background: var(--sup); border: 1px solid var(--linha-forte); border-radius: var(--r-sm); box-shadow: var(--sombra); z-index: 1200; max-height: 340px; overflow-y: auto; padding: 4px; }
+  .opcao { padding: 8px 10px; cursor: pointer; display: flex; justify-content: space-between; gap: 10px; align-items: baseline; border-radius: 4px; }
+  .opcao[aria-selected=true], .opcao:hover { background: var(--acento-fundo); }
   .opcao .sub { white-space: nowrap; }
-  .opcao-titulo { padding: 8px 12px 4px; font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--apagado); font-weight: 700; border-top: 1px solid var(--linha-fraca); }
-  .opcao-titulo:first-child { border-top: 0; }
-  .selecionadas { margin-top: 10px; }
-  .selecionadas .topo { display: flex; justify-content: space-between; font-size: 12.5px; color: var(--apagado); margin-bottom: 6px; }
-  #miniMapa, #mapa { isolation: isolate; z-index: 0; }
-  #miniMapa { height: 320px; border-radius: 6px; border: 1px solid var(--linha); margin-top: 12px; }
-  .raio { display: grid; grid-template-columns: 1fr 90px; gap: 10px; align-items: center; margin-top: 12px; }
-  .raio input[type=range] { width: 100%; accent-color: var(--destaque); }
-  .linha-ponto { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
-  .opcoes-linha { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: end; }
-  .marcar { display: flex; align-items: flex-start; gap: 8px; font-size: 13.5px; cursor: pointer; }
-  .marcar input { margin-top: 3px; }
-  .resumo { display: flex; align-items: center; gap: 16px; justify-content: space-between; background: var(--superficie); border: 1px solid var(--linha); border-radius: 8px; padding: 14px 20px; position: sticky; bottom: 12px; z-index: 5; box-shadow: 0 6px 20px rgba(23,35,43,.08); }
-  .resumo .txt b { font-variant-numeric: tabular-nums; }
+  .opcao-titulo { padding: 8px 10px 4px; font-size: 12px; color: var(--fraco); font-weight: 600; }
+  .selecionadas { margin-top: 12px; }
+  .selecionadas .topo { display: flex; justify-content: space-between; font-size: 12.5px; color: var(--apagado); margin-bottom: 8px; }
+  #miniMapa, #mapa { isolation: isolate; z-index: 0; background: var(--sup-2); }
+  #miniMapa { height: 320px; border-radius: var(--r-sm); border: 1px solid var(--linha); margin-top: 12px; }
+  .raio { display: grid; grid-template-columns: 1fr 90px; gap: 12px; align-items: end; margin-top: 14px; }
+  input[type=range] { width: 100%; accent-color: var(--acento); }
+  .linha-ponto { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: end; }
+  .opcoes-linha { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: end; }
+  .marcar { display: flex; align-items: flex-start; gap: 9px; font-size: 13.5px; cursor: pointer; color: var(--texto); font-weight: 400; margin: 0; }
+  .marcar input { margin-top: 3px; accent-color: var(--acento); }
+  .dica { font-size: 12.5px; color: var(--apagado); margin: 8px 0 0; }
+  .resumo { display: flex; align-items: center; gap: 16px; justify-content: space-between; padding: 14px 18px; position: sticky; bottom: 14px; z-index: 5; box-shadow: var(--sombra); border-color: var(--linha-forte); }
+  .resumo .txt b { font-variant-numeric: tabular-nums; color: var(--texto); }
+  .resumo .txt { color: var(--apagado); }
+  .lateral { position: sticky; top: 0; display: flex; flex-direction: column; gap: 14px; }
 
-  .historico { position: sticky; top: 76px; }
-  .busca { background: var(--superficie); border: 1px solid var(--linha); border-left: 3px solid var(--linha); border-radius: 6px; padding: 10px 12px; margin-bottom: 8px; font-size: 13px; }
-  .busca.rodando, .busca.na_fila { border-left-color: var(--destaque); }
-  .busca.erro { border-left-color: var(--alerta); }
-  .busca .t { font-weight: 700; }
-  .busca .meta { color: var(--apagado); font-size: 12.5px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 3px; }
-  .barra-prog { height: 3px; background: var(--linha-fraca); border-radius: 2px; overflow: hidden; margin-top: 8px; }
-  .barra-prog i { display: block; height: 100%; width: 30%; background: var(--destaque); animation: vai 1.4s ease-in-out infinite; }
+  /* lista de buscas */
+  .busca-it { padding: 11px 14px; border-top: 1px solid var(--linha); font-size: 13px; }
+  .busca-it:first-child { border-top: 0; }
+  .busca-it .t { font-weight: 600; }
+  .busca-it .meta { color: var(--apagado); font-size: 12.5px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 3px; }
+  .sit { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; }
+  .sit::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--fraco); }
+  .sit.rodando::before, .sit.na_fila::before { background: var(--acento); animation: pulso 1.8s infinite; }
+  .sit.pronta::before { background: var(--ok); }
+  .sit.erro::before { background: var(--perigo); }
+  .barra-prog { height: 3px; background: var(--sup-3); border-radius: 2px; overflow: hidden; margin-top: 9px; }
+  .barra-prog i { display: block; height: 100%; width: 30%; background: var(--acento); animation: vai 1.4s ease-in-out infinite; }
   @keyframes vai { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
 
-  /* ============ tela de resultados */
-  .tela-res { display: grid; grid-template-columns: 300px minmax(0, 1fr); height: calc(100vh - 54px); }
-  .filtros { background: var(--superficie); border-right: 1px solid var(--linha); overflow-y: auto; display: flex; flex-direction: column; }
-  .filtros-corpo { padding: 16px; display: flex; flex-direction: column; gap: 18px; flex: 1; }
-  .filtros-pe { position: sticky; bottom: 0; background: var(--superficie); border-top: 1px solid var(--linha); padding: 12px 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .grupo h4 { font-size: 12.5px; margin: 0 0 8px; color: var(--apagado); font-weight: 700; display: flex; justify-content: space-between; }
-  .grupo h4 button { font-weight: 600; font-size: 12px; }
-  .marcas { display: flex; flex-direction: column; max-height: 190px; overflow-y: auto; margin: 0 -4px; }
-  .marcas label { display: flex; align-items: center; gap: 8px; color: var(--texto); font-weight: 400; font-size: 13.5px; margin: 0; padding: 5px 4px; border-radius: 4px; cursor: pointer; min-height: 32px; }
-  .marcas label:hover { background: var(--linha-fraca); }
-  .marcas label .n { margin-left: auto; color: var(--apagado); font-family: var(--mono); font-size: 12px; }
-  .marcas input { accent-color: var(--destaque); width: 16px; height: 16px; }
-  .marcas-busca { min-height: 34px !important; padding: 6px 8px !important; margin-bottom: 6px; font-size: 13px; }
-  .toggles { display: flex; flex-wrap: wrap; gap: 6px; }
-  .toggles button { border: 1px solid var(--linha); background: #fff; border-radius: 999px; padding: 5px 12px; font-size: 13px; cursor: pointer; min-height: 34px; }
-  .toggles button[aria-pressed=true] { background: var(--texto); border-color: var(--texto); color: #fff; }
-  .toggles button .n { font-family: var(--mono); font-size: 11.5px; opacity: .7; margin-left: 4px; }
-  .faixa { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .faixa input { min-height: 36px; }
-
-  .res-main { display: grid; grid-template-rows: minmax(240px, 40vh) auto 1fr; min-width: 0; min-height: 0; }
-  #mapa { border-bottom: 1px solid var(--linha); }
-  .barra { display: flex; gap: 8px; align-items: center; padding: 10px 14px; background: var(--superficie); border-bottom: 1px solid var(--linha); flex-wrap: wrap; }
-  .barra input[type=search] { width: 260px; }
-  .barra select { width: auto; }
-  .contagem { margin-left: auto; color: var(--apagado); font-size: 13px; }
-  .contagem b { color: var(--texto); font-variant-numeric: tabular-nums; }
-  .ponto-info { font-size: 12.5px; color: var(--apagado); }
-  .lista { overflow: auto; min-height: 0; }
-  table { width: 100%; border-collapse: collapse; background: var(--superficie); }
-  th { position: sticky; top: 0; background: #f5f7f8; text-align: left; font-size: 12px; color: var(--apagado); font-weight: 600; padding: 8px 10px; border-bottom: 1px solid var(--linha); z-index: 1; white-space: nowrap; }
-  td { padding: 9px 10px; border-bottom: 1px solid var(--linha-fraca); vertical-align: top; }
+  /* ---------- tabelas */
+  table { width: 100%; border-collapse: separate; border-spacing: 0; }
+  th { position: sticky; top: 0; background: var(--sup); text-align: left; font-size: 12px; color: var(--apagado); font-weight: 500; padding: 9px 10px; border-bottom: 1px solid var(--linha); z-index: 2; white-space: nowrap; }
+  td { padding: 10px; border-bottom: 1px solid var(--linha); vertical-align: middle; }
+  tbody tr { transition: background .08s; }
   tr.lead { cursor: pointer; }
-  tr.lead:hover td { background: #f7faf9; }
-  tr.lead.ativo td { background: var(--destaque-claro); }
-  .nome { font-weight: 600; }
+  tr.lead:hover td { background: var(--sup-2); }
+  tr.lead.ativo td { background: var(--acento-fundo); }
+  tr.lead.sel td { background: color-mix(in srgb, var(--acento) 8%, transparent); }
+  td.ck, th.ck { width: 38px; padding-left: 16px; padding-right: 0; }
+  td.ck input, th.ck input { width: 16px; height: 16px; accent-color: var(--acento); cursor: pointer; }
+  .nome-l { font-weight: 550; }
   .contatos { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
   .contatos a { color: var(--texto); }
-  .zap { color: var(--destaque) !important; font-weight: 600; }
+  .zap { color: #25b866 !important; font-weight: 600; }
   .sem { color: var(--alerta); font-size: 12px; }
-  td select { min-height: 32px; padding: 4px 6px; width: 130px; }
-  .vazio { padding: 40px 20px; text-align: center; color: var(--apagado); }
-  .abrir-filtros { display: none; }
+  .seletor-status { display: inline-flex; align-items: center; gap: 0; position: relative; }
+  .seletor-status .ponto { position: absolute; left: 10px; pointer-events: none; }
+  .seletor-status select { min-height: 30px; padding: 3px 26px 3px 24px; width: 136px; font-size: 13px; border-radius: 999px; background-color: var(--sup-2); }
+  .vazio { padding: 48px 20px; text-align: center; color: var(--apagado); }
+  .retorno-tag { font-size: 12.5px; white-space: nowrap; }
+  .retorno-tag.atrasado { color: var(--perigo); font-weight: 600; }
+  .retorno-tag.hoje { color: var(--alerta); font-weight: 600; }
 
-  /* detalhe */
-  .detalhe { position: fixed; right: 0; top: 54px; bottom: 0; width: 390px; max-width: 100%; background: var(--superficie); border-left: 1px solid var(--linha); box-shadow: -8px 0 24px rgba(23,35,43,.08); padding: 18px; overflow-y: auto; transform: translateX(100%); transition: transform .18s; z-index: 1050; }
+  /* ---------- leads */
+  .v-leads { display: grid; grid-template-columns: 284px minmax(0, 1fr); height: 100%; }
+  .v-leads.sem-filtros { grid-template-columns: 0 minmax(0, 1fr); }
+  .v-leads.sem-filtros .filtros { visibility: hidden; }
+  .filtros { background: var(--sup); border-right: 1px solid var(--linha); overflow-y: auto; display: flex; flex-direction: column; min-height: 0; }
+  .filtros-corpo { padding: 16px; display: flex; flex-direction: column; gap: 20px; flex: 1; }
+  .filtros-pe { position: sticky; bottom: 0; background: var(--sup); border-top: 1px solid var(--linha); padding: 12px 16px; }
+  .filtros-pe .btn { width: 100%; }
+  .grupo h4 { font-size: 12.5px; margin: 0 0 8px; color: var(--apagado); font-weight: 600; display: flex; justify-content: space-between; align-items: baseline; }
+  .grupo h4 button { font-weight: 500; font-size: 12px; }
+  .marcas { display: flex; flex-direction: column; max-height: 190px; overflow-y: auto; margin: 0 -4px; }
+  .marcas label { display: flex; align-items: center; gap: 9px; color: var(--texto); font-weight: 400; font-size: 13px; margin: 0; padding: 4px; border-radius: 4px; cursor: pointer; min-height: 30px; }
+  .marcas label:hover { background: var(--sup-2); }
+  .marcas label .n { margin-left: auto; color: var(--fraco); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .marcas input { accent-color: var(--acento); width: 15px; height: 15px; }
+  .marcas-busca { min-height: 32px !important; padding: 5px 9px !important; margin-bottom: 6px; font-size: 13px; }
+  .faixa { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .faixa input { min-height: 34px; }
+  .score-faixa { display: grid; grid-template-columns: 1fr 44px; gap: 10px; align-items: center; }
+  .score-faixa output { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  .leads-main { display: flex; flex-direction: column; min-width: 0; min-height: 0; position: relative; }
+  .ferramentas { display: flex; gap: 8px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--linha); flex-wrap: wrap; background: var(--fundo); }
+  .ferramentas .campo-q { position: relative; flex: 1 1 180px; max-width: 320px; min-width: 150px; }
+  .ferramentas .campo-q svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--fraco); }
+  .ferramentas .campo-q input { padding-left: 32px; min-height: 36px; }
+  .ferramentas select { width: auto; max-width: 260px; min-height: 36px; }
+  .ferramentas .btn[aria-pressed=true] { background: var(--acento-fundo); border-color: var(--acento); }
+  .contagem { margin-left: auto; overflow: hidden; text-overflow: ellipsis; color: var(--apagado); font-size: 13px; white-space: nowrap; }
+  .contagem b { color: var(--texto); font-variant-numeric: tabular-nums; font-weight: 600; }
+  .mapa-wrap { height: 38vh; min-height: 220px; flex: none; border-bottom: 1px solid var(--linha); position: relative; }
+  .mapa-wrap #mapa { height: 100%; }
+  .legenda { position: absolute; left: 10px; bottom: 10px; z-index: 500; background: color-mix(in srgb, var(--sup) 92%, transparent); border: 1px solid var(--linha); border-radius: var(--r-sm); padding: 6px 10px; display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--apagado); max-width: calc(100% - 80px); }
+  .legenda span { display: inline-flex; align-items: center; gap: 5px; }
+  .ponto-info { position: absolute; right: 10px; top: 10px; z-index: 500; font-size: 12.5px; background: color-mix(in srgb, var(--sup) 92%, transparent); border: 1px solid var(--linha); border-radius: var(--r-sm); padding: 5px 10px; color: var(--apagado); }
+  .lista { flex: 1; overflow: auto; min-height: 0; background: var(--sup); }
+  .lote { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; background: var(--sup-3); border: 1px solid var(--linha-forte); border-radius: var(--r); padding: 8px 8px 8px 16px; box-shadow: var(--sombra); z-index: 20; white-space: nowrap; }
+  .lote b { font-variant-numeric: tabular-nums; }
+  .lote select { width: auto; min-height: 32px; padding: 4px 8px; }
+
+  /* ---------- funil */
+  .v-funil { display: flex; flex-direction: column; height: 100%; }
+  .quadro { flex: 1; min-height: 0; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(250px, 1fr); gap: 12px; padding: 16px; overflow-x: auto; }
+  .coluna { background: var(--sup); border: 1px solid var(--linha); border-radius: var(--r); display: flex; flex-direction: column; min-height: 0; transition: border-color .12s, background .12s; }
+  .coluna.alvo { border-color: var(--acento); background: color-mix(in srgb, var(--acento) 6%, var(--sup)); }
+  .coluna-topo { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--linha); font-weight: 600; font-size: 13.5px; }
+  .coluna-topo .n { margin-left: auto; color: var(--apagado); font-weight: 500; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+  .cartoes { flex: 1; overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+  .cartao { background: var(--sup-2); border: 1px solid var(--linha); border-radius: var(--r-sm); padding: 10px 11px; cursor: grab; font-size: 13px; }
+  .cartao:hover { border-color: var(--linha-forte); }
+  .cartao.arrastando { opacity: .4; }
+  .cartao .topo { display: flex; gap: 8px; align-items: flex-start; justify-content: space-between; }
+  .cartao .t { font-weight: 550; line-height: 1.35; }
+  .cartao .rodape > * { white-space: nowrap; }
+  .cartao .rodape { display: flex; flex-wrap: wrap; row-gap: 2px; gap: 10px; align-items: center; margin-top: 6px; color: var(--apagado); font-size: 12px; }
+  .cartao .rodape .zap-ico { color: #25b866; display: inline-flex; }
+  .mais { font-size: 12px; color: var(--fraco); text-align: center; padding: 6px; }
+
+  /* ---------- histórico */
+  .v-hist { padding: 22px; max-width: 1300px; }
+  .v-hist table td { font-size: 13.5px; }
+  .v-hist .acoes { display: flex; gap: 12px; justify-content: flex-end; white-space: nowrap; }
+
+  /* ---------- detalhe */
+  .detalhe { position: fixed; right: 0; top: 0; bottom: 0; width: 440px; max-width: 100%; background: var(--sup); border-left: 1px solid var(--linha-forte); box-shadow: var(--sombra); overflow-y: auto; transform: translateX(100%); transition: transform .2s cubic-bezier(.2,.7,.2,1); z-index: 1250; }
   .detalhe.aberto { transform: none; }
-  .detalhe h3 { margin: 0 36px 4px 0; font-size: 17px; }
-  .fechar { position: absolute; right: 10px; top: 10px; width: 40px; height: 40px; border: 0; background: none; font-size: 24px; cursor: pointer; color: var(--apagado); }
-  .detalhe dl { display: grid; grid-template-columns: 90px 1fr; gap: 6px 10px; font-size: 13px; margin: 14px 0; }
+  .det-topo { position: sticky; top: 0; background: var(--sup); z-index: 2; padding: 18px 20px 14px; border-bottom: 1px solid var(--linha); }
+  .det-topo h3 { margin: 0 44px 2px 0; font-size: 19px; font-weight: 650; letter-spacing: -.01em; line-height: 1.25; }
+  .fechar { position: absolute; right: 12px; top: 12px; width: 36px; height: 36px; border: 0; background: none; border-radius: var(--r-sm); cursor: pointer; color: var(--apagado); display: grid; place-items: center; }
+  .fechar:hover { background: var(--sup-3); color: var(--texto); }
+  .det-acoes { display: flex; gap: 6px; margin-top: 14px; flex-wrap: wrap; }
+  .det-sec { padding: 16px 20px; border-bottom: 1px solid var(--linha); }
+  .det-sec h4 { margin: 0 0 10px; font-size: 13px; font-weight: 600; display: flex; justify-content: space-between; align-items: baseline; }
+  .det-score { display: grid; grid-template-columns: 64px 1fr; gap: 16px; align-items: center; }
+  .anel { position: relative; width: 64px; height: 64px; }
+  .anel svg { width: 64px; height: 64px; transform: rotate(-90deg); }
+  .anel b { position: absolute; inset: 0; display: grid; place-items: center; font-size: 19px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .motivos { margin: 0; padding: 0; list-style: none; font-size: 12.5px; display: grid; gap: 3px; }
+  .motivos li { display: flex; gap: 7px; align-items: center; color: var(--fraco); }
+  .motivos li.sim { color: var(--texto); }
+  .motivos li .p { margin-left: auto; font-variant-numeric: tabular-nums; color: var(--fraco); }
+  .motivos li.sim .p { color: var(--acento-forte); font-weight: 600; }
+  .motivos svg { width: 13px; height: 13px; }
+  .duas { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .atalhos-data { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 7px; }
+  .atalhos-data button { border: 1px solid var(--linha); background: none; border-radius: 999px; padding: 2px 9px; font-size: 12px; cursor: pointer; color: var(--apagado); }
+  .atalhos-data button:hover { border-color: var(--acento); color: var(--texto); }
+  .detalhe dl { display: grid; grid-template-columns: 96px 1fr; gap: 7px 12px; font-size: 13px; margin: 0; }
   .detalhe dt { color: var(--apagado); }
   .detalhe dd { margin: 0; word-break: break-word; }
-  .salvo { color: var(--destaque); font-size: 12px; margin-left: 8px; }
-  .leaflet-container { font: inherit; }
+  .tempo { list-style: none; margin: 12px 0 0; padding: 0; position: relative; }
+  .tempo li { display: grid; grid-template-columns: 16px 1fr; gap: 10px; padding-bottom: 12px; position: relative; font-size: 13px; }
+  .tempo li::before { content: ""; position: absolute; left: 7.5px; top: 14px; bottom: 0; width: 1px; background: var(--linha); }
+  .tempo li:last-child::before { display: none; }
+  .tempo .bola { width: 9px; height: 9px; border-radius: 50%; margin: 5px 0 0 3px; background: var(--fraco); }
+  .tempo .bola.status { background: var(--acento); }
+  .tempo .bola.whatsapp { background: #25b866; }
+  .tempo .bola.retorno { background: var(--alerta); }
+  .tempo .quando { color: var(--fraco); font-size: 12px; }
+  .registrar { display: grid; grid-template-columns: 110px 1fr auto; gap: 6px; }
+  .registrar select, .registrar input { min-height: 34px; padding: 5px 8px; }
+  .salvo { color: var(--ok); font-size: 12px; margin-left: 8px; }
 
+  /* ---------- modais */
+  .fundo-modal { position: fixed; inset: 0; background: rgba(5,8,15,.55); backdrop-filter: blur(3px); z-index: 1300; display: flex; align-items: flex-start; justify-content: center; padding-top: 12vh; }
+  .modal { width: 600px; max-width: calc(100% - 24px); background: var(--sup); border: 1px solid var(--linha-forte); border-radius: var(--r-lg); box-shadow: var(--sombra); overflow: hidden; }
+  .paleta-in { display: flex; align-items: center; gap: 10px; padding: 4px 16px; border-bottom: 1px solid var(--linha); }
+  .paleta-in svg { color: var(--fraco); }
+  .paleta-in input { border: 0 !important; box-shadow: none !important; background: none !important; font-size: 15px; min-height: 50px; padding: 0; }
+  .paleta-res { max-height: 380px; overflow-y: auto; padding: 6px; }
+  .paleta-grupo { padding: 8px 10px 4px; font-size: 12px; color: var(--fraco); font-weight: 600; }
+  .paleta-it { display: flex; align-items: center; gap: 11px; padding: 9px 10px; border-radius: var(--r-sm); cursor: pointer; }
+  .paleta-it .sub { margin-left: auto; }
+  .paleta-it[aria-selected=true] { background: var(--acento-fundo); }
+  .paleta-pe { display: flex; gap: 14px; padding: 9px 16px; border-top: 1px solid var(--linha); font-size: 12px; color: var(--fraco); }
+  .modal-topo { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--linha); }
+  .modal-topo h3 { margin: 0; font-size: 16px; }
+  .modal-corpo { padding: 16px 20px; max-height: 62vh; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
+  .modelo-ed { border: 1px solid var(--linha); border-radius: var(--r); padding: 12px; display: grid; gap: 8px; background: var(--sup-2); }
+  .modelo-ed .linha { display: flex; gap: 8px; }
+  .modal-pe { display: flex; justify-content: space-between; gap: 10px; padding: 12px 20px; border-top: 1px solid var(--linha); }
+
+  /* ---------- tags, listas, config */
+  .tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; }
+  .tag { display: inline-flex; align-items: center; gap: 2px; font-size: 11.5px; padding: 1px 7px; border-radius: 4px; background: var(--sup-3); color: var(--apagado); border: 1px solid var(--linha); }
+  .tag button { border: 0; background: none; color: inherit; cursor: pointer; padding: 0 0 0 3px; font-size: 13px; line-height: 1; }
+  .tag button:hover { color: var(--perigo); }
+  .tags-ed { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .tags-ed input { flex: 1; min-width: 120px; min-height: 30px; padding: 4px 8px; }
+  .nav .listas { display: flex; flex-direction: column; gap: 1px; margin: 2px 0 4px 26px; border-left: 1px solid var(--linha); padding-left: 6px; }
+  .nav .listas a { padding: 5px 8px; font-size: 13px; font-weight: 400; gap: 8px; }
+  .nav .listas a .x { margin-left: 2px; opacity: 0; border: 0; background: none; color: var(--fraco); cursor: pointer; padding: 0 2px; font-size: 14px; line-height: 1; }
+  .nav .listas a:hover .x { opacity: 1; }
+  .nav .listas a .x:hover { color: var(--perigo); }
+  .zap-ok { font-size: 11px; color: #25b866; margin-left: 4px; }
+  .zap-nao { font-size: 11.5px; color: var(--fraco); }
+  .agenda { font-size: 12px; color: var(--acento-forte); white-space: nowrap; }
+  .agenda select { width: auto; min-height: 28px; padding: 2px 6px; font-size: 12.5px; }
+  .v-config { padding: 22px; max-width: 880px; display: flex; flex-direction: column; gap: 16px; }
+  .v-config .bloco-corpo { display: grid; gap: 14px; }
+  .v-config .tres { display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 12px; }
+  .peso { display: grid; grid-template-columns: minmax(0, 1fr) 160px 52px; gap: 14px; align-items: center; font-size: 13.5px; }
+  .peso input[type=number] { min-height: 32px; padding: 4px 8px; text-align: right; }
+  .estado-zap { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; }
+  .estado-zap::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--fraco); }
+  .estado-zap.ok::before { background: var(--ok); }
+  .estado-zap.erro::before { background: var(--perigo); }
+  .atencao { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; }
+  .atencao a { padding: 4px 16px 4px 0; text-decoration: none !important; color: inherit; }
+  .atencao a + a { padding-left: 16px; border-left: 1px solid var(--linha); }
+  .atencao b { display: block; font-size: 22px; font-weight: 650; }
+  .atencao span { font-size: 12.5px; color: var(--apagado); }
+  .atencao a:hover b { color: var(--acento-forte); }
+  .tempo .bola.mudanca { background: var(--st-contatar); }
+  .tempo .bola.conferido { background: #25b866; }
+
+  /* ---------- avisos */
+  .avisos { position: fixed; right: 18px; bottom: 18px; z-index: 1400; display: flex; flex-direction: column; gap: 8px; align-items: flex-end; }
+  .aviso { background: var(--sup-3); border: 1px solid var(--linha-forte); border-radius: var(--r); padding: 11px 14px; box-shadow: var(--sombra); font-size: 13.5px; display: flex; gap: 14px; align-items: center; max-width: 420px; animation: entra .2s ease-out; }
+  @keyframes entra { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+  .leaflet-container { font: inherit; background: var(--sup-2); }
+  [data-theme=dark] .mapa-base { filter: invert(1) hue-rotate(200deg) brightness(.82) contrast(.92) saturate(.45); }
+  .leaflet-tooltip { background: var(--sup-3); color: var(--texto); border: 1px solid var(--linha-forte); box-shadow: var(--sombra); border-radius: 6px; font-size: 12.5px; }
+  .leaflet-tooltip-top::before { border-top-color: var(--linha-forte); }
+  [data-theme=dark] .leaflet-control-zoom a { background: var(--sup-3); color: var(--texto); border-color: var(--linha); }
+  [data-theme=dark] .leaflet-control-attribution { background: rgba(18,26,41,.8) !important; color: var(--fraco); }
+  [data-theme=dark] .leaflet-control-attribution a { color: var(--apagado); }
+
+  @media (max-width: 1560px) { #salvarLista span, #mostrarMapa span { display: none; } #salvarLista, #mostrarMapa { padding: 0; width: 36px; } }
+  @media (max-width: 1200px) {
+    .kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .kpi:nth-child(4) { border-left: 0; }
+    .kpi:nth-child(n+4) { border-top: 1px solid var(--linha); }
+    .c8, .c4, .c6 { grid-column: 1 / -1; }
+  }
   @media (max-width: 900px) {
-    header { gap: 10px; padding: 0 12px; }
-    header .base { display: none; }
+    .app { grid-template-columns: 1fr; }
+    .sidebar { position: fixed; inset: 0 auto 0 0; width: 260px; transform: translateX(-100%); transition: transform .2s; box-shadow: var(--sombra); }
+    .sidebar.aberta { transform: none; }
+    .menu-mob { display: inline-flex; }
+    .topbar { padding: 0 12px; gap: 8px; }
+    .topbar .sub, .procurar span, .ativa span { display: none; }
+    .procurar { width: auto; }
     .tela-busca { grid-template-columns: 1fr; padding: 16px 12px 40px; }
-    .historico { position: static; }
     .opcoes-linha { grid-template-columns: 1fr; }
     .resumo { flex-direction: column; align-items: stretch; }
-    .tela-res { grid-template-columns: 1fr; height: auto; }
-    .filtros { position: fixed; inset: 54px 0 0 0; z-index: 1080; display: none; }
-    .filtros.aberto { display: flex; }
-    .abrir-filtros { display: inline-flex; }
-    .res-main { grid-template-rows: 300px auto auto; }
-    .barra input[type=search] { width: 100%; }
-    .col-local, .col-dist { display: none; }
+    .v-leads { grid-template-columns: 1fr; }
+    .filtros { position: fixed; inset: var(--topbar) 0 0 0; z-index: 1080; }
+    .v-leads.sem-filtros .filtros { display: none; }
+    .ferramentas .campo-q { width: 100%; }
+    .col-local, .col-dist, .col-ret { display: none; }
+    .painel { padding: 14px; }
+    .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .kpi:nth-child(odd) { border-left: 0; } .kpi:nth-child(4) { border-left: 1px solid var(--linha); }
+    .kpi:nth-child(n+3) { border-top: 1px solid var(--linha); }
+    .boas-vindas { grid-template-columns: 1fr; padding: 24px; }
+    .lote { left: 12px; right: 12px; transform: none; flex-wrap: wrap; white-space: normal; }
   }
 </style>
 </head>
 <body>
-<header>
-  <h1>Base de Leads</h1>
-  <nav>
-    <a href="#/buscar" id="navBuscar">Nova busca</a>
-    <a href="#/resultados" id="navRes">Resultados<span class="n" id="navN"></span></a>
-  </nav>
-  <span class="base" id="base"></span>
-</header>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-painel" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></symbol>
+  <symbol id="i-busca" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+  <symbol id="i-radar" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><path d="M12 12 18.5 5.5"/><circle cx="12" cy="12" r="1" fill="currentColor"/></symbol>
+  <symbol id="i-leads" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+  <symbol id="i-funil" viewBox="0 0 24 24"><rect x="3" y="4" width="5" height="16" rx="1.5"/><rect x="10" y="4" width="5" height="11" rx="1.5"/><rect x="17" y="4" width="4" height="7" rx="1.5"/></symbol>
+  <symbol id="i-hist" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></symbol>
+  <symbol id="i-mais" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
+  <symbol id="i-mapa" viewBox="0 0 24 24"><path d="M14.1 5.55a2 2 0 0 0 1.8 0l3.65-1.83A1 1 0 0 1 21 4.62v12.76a1 1 0 0 1-.55.9l-4.55 2.27a2 2 0 0 1-1.8 0l-4.2-2.1a2 2 0 0 0-1.8 0l-3.65 1.83A1 1 0 0 1 3 19.38V6.62a1 1 0 0 1 .55-.9L8.1 3.45a2 2 0 0 1 1.8 0z"/><path d="M15 5.76v15"/><path d="M9 3.24v15"/></symbol>
+  <symbol id="i-filtro" viewBox="0 0 24 24"><path d="M4 5h16"/><path d="M7 12h10"/><path d="M10 19h4"/></symbol>
+  <symbol id="i-baixar" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></symbol>
+  <symbol id="i-sol" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></symbol>
+  <symbol id="i-lua" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></symbol>
+  <symbol id="i-zap" viewBox="0 0 24 24"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></symbol>
+  <symbol id="i-fone" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24"><path d="M20 10c0 5-5.54 10.19-7.4 11.8a1 1 0 0 1-1.2 0C9.54 20.19 4 15 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></symbol>
+  <symbol id="i-site" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></symbol>
+  <symbol id="i-msg" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></symbol>
+  <symbol id="i-ok" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-menos" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+  <symbol id="i-cal" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+  <symbol id="i-config" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-tag" viewBox="0 0 24 24"><path d="M12.59 2.59A2 2 0 0 0 11.17 2H4a2 2 0 0 0-2 2v7.17a2 2 0 0 0 .59 1.42l8.7 8.7a2.43 2.43 0 0 0 3.42 0l6.58-6.58a2.43 2.43 0 0 0 0-3.42z"/><circle cx="7.5" cy="7.5" r=".5" fill="currentColor"/></symbol>
+  <symbol id="i-salvar" viewBox="0 0 24 24"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></symbol>
+  <symbol id="i-enviar" viewBox="0 0 24 24"><path d="M14.54 21.69a.5.5 0 0 0 .94-.03l6.5-19a.5.5 0 0 0-.64-.64l-19 6.5a.5.5 0 0 0-.03.94l7.93 3.18a2 2 0 0 1 1.11 1.11z"/><path d="m21.85 2.15-10.94 10.94"/></symbol>
+  <symbol id="i-seta" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></symbol>
+</svg>
 
-<!-- ================= TELA 1: BUSCA ================= -->
-<section id="telaBusca" class="tela-busca" hidden>
-  <form id="formBusca" autocomplete="off">
-    <div class="passo">
-      <h3>1. O que procurar</h3>
-      <p class="sub">Digite o segmento e aperte Enter. Pode colocar vários.</p>
-      <div class="campo-chips" id="campoTermos">
-        <span class="chips" id="chipsTermos"></span>
-        <input id="inTermo" type="text" placeholder="ex.: padaria" aria-label="Segmento">
-      </div>
-      <div class="sugestoes" id="sugTermos"></div>
+<div class="app">
+  <aside class="sidebar" id="sidebar">
+    <div class="marca">
+      <svg viewBox="0 0 32 32" aria-hidden="true">
+        <rect width="32" height="32" rx="8" fill="var(--acento)"/>
+        <circle cx="16" cy="16" r="9" fill="none" stroke="#fff" stroke-opacity=".45" stroke-width="1.5"/>
+        <circle cx="16" cy="16" r="4.5" fill="none" stroke="#fff" stroke-opacity=".7" stroke-width="1.5"/>
+        <path d="M16 16 22.4 9.6" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+        <circle cx="20.5" cy="19.5" r="1.8" fill="#fff"/>
+      </svg>
+      <div><b>Base de Leads</b><span>prospecção local</span></div>
     </div>
-
-    <div class="passo">
-      <h3>2. Onde</h3>
-      <p class="sub">Escolha cidades (uma ou várias) ou um raio em volta de um endereço.</p>
-      <div class="abas" role="group" aria-label="Tipo de local">
-        <button type="button" data-modo="cidade" aria-pressed="true">Cidades</button>
-        <button type="button" data-modo="ponto" aria-pressed="false">Raio em volta de um ponto</button>
+    <nav class="nav" aria-label="Principal">
+      <a href="#/painel" data-v="painel"><svg class="i"><use href="#i-painel"/></svg>Painel</a>
+      <a href="#/buscar" data-v="buscar"><svg class="i"><use href="#i-radar"/></svg>Nova busca</a>
+      <a href="#/leads" data-v="leads"><svg class="i"><use href="#i-leads"/></svg>Leads<span class="cont" id="navN"></span></a>
+      <div class="listas" id="navListas" hidden></div>
+      <a href="#/funil" data-v="funil"><svg class="i"><use href="#i-funil"/></svg>Funil</a>
+      <a href="#/historico" data-v="historico"><svg class="i"><use href="#i-hist"/></svg>Histórico<span class="vivo" id="navVivo" hidden></span></a>
+      <div class="nav-sep"></div>
+      <a href="#" id="abrirModelos"><svg class="i"><use href="#i-msg"/></svg>Modelos de mensagem</a>
+      <a href="#/config" data-v="config"><svg class="i"><use href="#i-config"/></svg>Configurações</a>
+    </nav>
+    <div class="sb-pe">
+      <div class="sb-base" id="sbBase">Nenhuma empresa na base ainda.</div>
+      <div class="sb-acoes">
+        <button class="btn btn-sm" id="tema" type="button"><svg class="i"><use href="#i-sol"/></svg><span>Tema claro</span></button>
       </div>
+    </div>
+  </aside>
 
-      <div id="modoCidade">
-        <div class="seletor">
-          <label for="inCidade">Cidade, região ou CEP</label>
-          <input id="inCidade" type="text" placeholder="ex.: Timóteo, região de Ipatinga ou 35181-000" role="combobox" aria-expanded="false" aria-controls="opCidade">
-          <div class="lista-opcoes" id="opCidade" role="listbox" hidden></div>
-        </div>
-        <div class="selecionadas" id="selCidades" hidden>
-          <div class="topo"><span id="nCidades"></span><button type="button" class="link" id="limparCidades">tirar todas</button></div>
-          <div class="chips" id="chipsCidades"></div>
-        </div>
-        <p class="dica">Escolher uma região adiciona todas as cidades dela (regiões imediatas do IBGE). Cada cidade traz até uns 120 resultados por segmento.</p>
+  <div class="principal">
+    <header class="topbar">
+      <button class="btn btn-ico menu-mob" id="menuMob" aria-label="Menu"><svg class="i"><use href="#i-menu"/></svg></button>
+      <h1 id="titulo">Painel</h1>
+      <span class="sub" id="subtitulo"></span>
+      <div class="dir">
+        <a class="ativa" id="ativa" href="#/historico" hidden><i class="vivo"></i><span id="ativaTxt"></span></a>
+        <button class="procurar" id="abrirPaleta" type="button"><svg class="i"><use href="#i-busca"/></svg><span>Procurar ou ir para…</span><kbd id="atalhoK">⌘K</kbd></button>
+        <a class="btn btn-pri" href="#/buscar" id="btnNova"><svg class="i"><use href="#i-mais"/></svg><span>Nova busca</span></a>
       </div>
+    </header>
 
-      <div id="modoPonto" hidden>
-        <div class="linha-ponto">
-          <div class="seletor">
-            <label for="inPonto">CEP ou cidade do centro</label>
-            <input id="inPonto" type="text" placeholder="ex.: 35181-000" role="combobox" aria-expanded="false" aria-controls="opPonto">
-            <div class="lista-opcoes" id="opPonto" role="listbox" hidden></div>
+    <!-- ================= PAINEL ================= -->
+    <section class="vista" id="vPainel" hidden>
+      <div class="painel" id="painel"></div>
+    </section>
+
+    <!-- ================= NOVA BUSCA ================= -->
+    <section class="vista" id="vBuscar" hidden>
+      <div class="tela-busca">
+        <form id="formBusca" autocomplete="off">
+          <div class="bloco passo">
+            <div class="passo-topo"><span class="passo-n">1</span><div><h3>O que procurar</h3><p class="sub">Digite o segmento e aperte Enter. Pode colocar vários.</p></div></div>
+            <div class="campo-chips" id="campoTermos">
+              <span class="chips" id="chipsTermos"></span>
+              <input id="inTermo" type="text" placeholder="ex.: padaria" aria-label="Segmento">
+            </div>
+            <div class="sugestoes" id="sugTermos"></div>
           </div>
-          <div style="display:flex;align-items:flex-end"><button type="button" class="btn" id="minhaLocal">Minha localização</button></div>
+
+          <div class="bloco passo">
+            <div class="passo-topo"><span class="passo-n">2</span><div><h3>Onde</h3><p class="sub">Cidades (uma ou várias) ou um raio em volta de um endereço.</p></div></div>
+            <div class="abas" role="group" aria-label="Tipo de local">
+              <button type="button" data-modo="cidade" aria-pressed="true">Cidades</button>
+              <button type="button" data-modo="ponto" aria-pressed="false">Raio em volta de um ponto</button>
+            </div>
+            <div id="modoCidade">
+              <div class="seletor">
+                <label for="inCidade">Cidade, região ou CEP</label>
+                <input id="inCidade" type="text" placeholder="ex.: Timóteo, região de Ipatinga ou 35181-000" role="combobox" aria-expanded="false" aria-controls="opCidade">
+                <div class="lista-opcoes" id="opCidade" role="listbox" hidden></div>
+              </div>
+              <div class="selecionadas" id="selCidades" hidden>
+                <div class="topo"><span id="nCidades"></span><button type="button" class="link" id="limparCidades">Tirar todas</button></div>
+                <div class="chips" id="chipsCidades"></div>
+              </div>
+              <p class="dica">Escolher uma região adiciona todas as cidades dela (regiões imediatas do IBGE). Cada cidade traz até uns 120 resultados por segmento.</p>
+            </div>
+            <div id="modoPonto" hidden>
+              <div class="linha-ponto">
+                <div class="seletor">
+                  <label for="inPonto">CEP ou cidade do centro</label>
+                  <input id="inPonto" type="text" placeholder="ex.: 35181-000" role="combobox" aria-expanded="false" aria-controls="opPonto">
+                  <div class="lista-opcoes" id="opPonto" role="listbox" hidden></div>
+                </div>
+                <button type="button" class="btn" id="minhaLocal"><svg class="i"><use href="#i-pin"/></svg>Minha localização</button>
+              </div>
+              <div id="miniMapa"></div>
+              <p class="dica" id="pontoTxt">Ou clique no mapa para marcar o centro. Dá para arrastar o marcador.</p>
+              <div class="raio">
+                <div><label for="raioRange">Raio</label><input id="raioRange" type="range" min="0.5" max="20" step="0.5" value="2"></div>
+                <div><label for="raio">km</label><input id="raio" type="number" min="0.5" max="50" step="0.5" value="2"></div>
+              </div>
+              <p class="dica">Até 3 km é uma busca só. Acima disso a área é dividida em quadrados, o que pega bem mais empresas e demora mais.</p>
+            </div>
+          </div>
+
+          <div class="bloco passo">
+            <div class="passo-topo"><span class="passo-n">3</span><div><h3>Quanto buscar</h3></div></div>
+            <div class="opcoes-linha">
+              <div>
+                <label for="prof">Resultados por segmento e cidade</label>
+                <select id="prof">
+                  <option value="1">Poucos, para testar (até 20)</option>
+                  <option value="5" selected>Normal (até 60)</option>
+                  <option value="10">Máximo (até 120)</option>
+                </select>
+              </div>
+              <label class="marcar"><input type="checkbox" id="emails"> Procurar e-mail no site de cada empresa. Deixa a busca mais lenta.</label>
+            </div>
+          </div>
+
+          <div class="bloco resumo">
+            <div class="txt" id="resumo">Escolha o segmento e o local.</div>
+            <button class="btn btn-pri" id="btnBuscar" disabled><svg class="i"><use href="#i-radar"/></svg>Buscar empresas</button>
+          </div>
+          <p class="erro" id="erroBusca" role="alert"></p>
+        </form>
+
+        <aside class="lateral">
+          <div class="bloco">
+            <div class="bloco-topo"><h3>Últimas buscas</h3><a href="#/historico" class="sub">Ver todas</a></div>
+            <div id="buscas" style="padding-top:8px"><p class="sub" style="padding:0 16px 14px">Nenhuma busca ainda. Elas aparecem aqui com o andamento, e você pode continuar usando o sistema enquanto rodam.</p></div>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ================= LEADS ================= -->
+    <section class="vista" id="vLeads" hidden style="overflow:hidden">
+      <div class="v-leads" id="vLeadsGrade">
+        <aside class="filtros" id="painelFiltros">
+          <div class="filtros-corpo">
+            <div class="grupo">
+              <h4>Busca de origem</h4>
+              <select id="fBusca"><option value="">Todas as buscas</option></select>
+            </div>
+            <div class="grupo">
+              <h4>Score de oportunidade mínimo</h4>
+              <div class="score-faixa"><input type="range" id="fScore" min="0" max="100" step="5" value="0" aria-label="Score mínimo"><output id="fScoreV">0</output></div>
+            </div>
+            <div class="grupo">
+              <h4>Contato e presença online</h4>
+              <div class="pilulas" id="tContato">
+                <button type="button" data-k="whats" data-v="sim">Tem celular</button>
+                <button type="button" data-k="whats" data-v="nao">Só fixo ou sem</button>
+                <button type="button" data-k="site" data-v="nao">Sem site</button>
+                <button type="button" data-k="site" data-v="sim">Tem site</button>
+                <button type="button" data-k="insta" data-v="sim">Tem Instagram</button>
+                <button type="button" data-k="email" data-v="sim">Tem e-mail</button>
+                <button type="button" data-k="reivindicado" data-v="nao">Perfil sem dono</button>
+                <button type="button" data-k="duplicado" data-v="sim">Telefone repetido</button>
+                <button type="button" data-k="mudou" data-v="7d">Mudou no Google (7 dias)</button>
+              </div>
+            </div>
+            <div class="grupo">
+              <h4>WhatsApp conferido no Zapvu</h4>
+              <div class="pilulas" id="tZap">
+                <button type="button" data-k="zap_conferido" data-v="sim">Confirmado</button>
+                <button type="button" data-k="zap_conferido" data-v="nao">Sem WhatsApp</button>
+                <button type="button" data-k="zap_conferido" data-v="pendente">Não conferido</button>
+              </div>
+            </div>
+            <div class="grupo">
+              <h4>Status</h4>
+              <div class="pilulas" id="tStatus"></div>
+              <p class="dica">Sem nenhum marcado, mostra todos menos "Não contatar".</p>
+            </div>
+            <div class="grupo">
+              <h4>Retorno</h4>
+              <div class="pilulas" id="tRetorno">
+                <button type="button" data-k="retorno" data-v="pendente">Para hoje ou atrasado</button>
+                <button type="button" data-k="retorno" data-v="agendado">Com retorno marcado</button>
+              </div>
+            </div>
+            <div class="grupo" id="grupoTags" hidden>
+              <h4>Tags <button type="button" class="link" data-limpa="tags" hidden>Limpar</button></h4>
+              <div class="marcas" id="lTags"></div>
+            </div>
+            <div class="grupo">
+              <h4>Cidades <button type="button" class="link" data-limpa="municipios" hidden>Limpar</button></h4>
+              <input type="search" class="marcas-busca" data-procura="lCidades" placeholder="Procurar cidade" hidden>
+              <div class="marcas" id="lCidades"></div>
+            </div>
+            <div class="grupo">
+              <h4>Categorias <button type="button" class="link" data-limpa="categorias" hidden>Limpar</button></h4>
+              <input type="search" class="marcas-busca" data-procura="lCategorias" placeholder="Procurar categoria" hidden>
+              <div class="marcas" id="lCategorias"></div>
+            </div>
+            <div class="grupo">
+              <h4>Nota no Google</h4>
+              <div class="faixa"><input type="number" id="fNotaMin" placeholder="de 1,0" step="0.1" min="1" max="5" aria-label="Nota mínima"><input type="number" id="fNotaMax" placeholder="até 5,0" step="0.1" min="1" max="5" aria-label="Nota máxima"></div>
+            </div>
+            <div class="grupo">
+              <h4>Número de avaliações</h4>
+              <div class="faixa"><input type="number" id="fAvalMin" placeholder="de 0" min="0" aria-label="Avaliações mínimas"><input type="number" id="fAvalMax" placeholder="até" min="0" aria-label="Avaliações máximas"></div>
+            </div>
+            <div class="grupo">
+              <h4>Bairro</h4>
+              <input type="text" id="fBairro" placeholder="ex.: Centro">
+            </div>
+            <div class="grupo">
+              <h4>Distância</h4>
+              <label class="marcar"><input type="checkbox" id="fRaio"> Só até <input type="number" id="fRaioKm" value="3" min="0.5" step="0.5" style="width:64px;min-height:28px;padding:2px 6px;margin:0 4px"> km do ponto</label>
+              <p class="dica" id="dicaPonto">Clique no mapa para marcar um ponto e ver a distância de cada empresa.</p>
+            </div>
+          </div>
+          <div class="filtros-pe"><button type="button" class="btn" id="limpar">Limpar filtros</button></div>
+        </aside>
+
+        <div class="leads-main">
+          <div class="ferramentas">
+            <button type="button" class="btn" id="abrirFiltros" aria-pressed="true"><svg class="i"><use href="#i-filtro"/></svg><span>Filtros</span></button>
+            <div class="campo-q"><svg class="i"><use href="#i-busca"/></svg><input type="search" id="fQ" placeholder="Nome, endereço ou anotação  ( / )"></div>
+            <select id="fOrdem" aria-label="Ordenar">
+              <option value="">Mais recentes</option>
+              <option value="score">Maior score</option>
+              <option value="retorno">Retorno mais próximo</option>
+              <option value="distancia">Mais perto do ponto</option>
+              <option value="nota_asc">Pior nota primeiro</option>
+              <option value="nota_desc">Melhor nota primeiro</option>
+              <option value="avaliacoes_asc">Menos avaliações</option>
+              <option value="avaliacoes_desc">Mais avaliações</option>
+              <option value="nome">Nome (A–Z)</option>
+            </select>
+            <button type="button" class="btn" id="mostrarMapa" aria-pressed="true"><svg class="i"><use href="#i-mapa"/></svg><span>Mapa</span></button>
+            <span class="contagem" id="contagem"></span>
+            <button type="button" class="btn" id="salvarLista" title="Salvar estes filtros como uma lista"><svg class="i"><use href="#i-salvar"/></svg><span>Salvar lista</span></button>
+            <button type="button" class="btn" id="exportar"><svg class="i"><use href="#i-baixar"/></svg>Baixar CSV</button>
+          </div>
+          <div class="mapa-wrap" id="mapaWrap">
+            <div id="mapa"></div>
+            <div class="legenda" id="legenda"></div>
+            <div class="ponto-info" id="pontoInfo" hidden></div>
+          </div>
+          <div class="lista">
+            <table>
+              <thead><tr><th class="ck"><input type="checkbox" id="selTodos" aria-label="Selecionar todos"></th><th>Empresa</th><th title="Score de oportunidade">Score</th><th>Nota</th><th>Contato</th><th class="col-local">Local</th><th class="col-dist">Distância</th><th class="col-ret">Retorno</th><th>Status</th></tr></thead>
+              <tbody id="tbody"></tbody>
+            </table>
+          </div>
+          <div class="lote" id="lote" hidden>
+            <span><b id="loteN">0</b> selecionadas</span>
+            <select id="loteStatus" aria-label="Novo status"><option value="">Mudar status para…</option></select>
+            <form id="loteTagForm" style="display:flex;gap:6px"><input type="text" id="loteTag" placeholder="Adicionar tag" list="dlTags" style="width:140px;min-height:32px;padding:4px 8px"></form>
+            <button class="btn btn-sm" id="loteConferir" hidden title="Pergunta ao WhatsApp, via Zapvu, quais números têm conta (até 50 por vez)"><svg class="i"><use href="#i-zap"/></svg>Conferir WhatsApp</button>
+            <button class="btn btn-sm" id="loteCsv"><svg class="i"><use href="#i-baixar"/></svg>CSV</button>
+            <button class="btn btn-sm btn-ico" id="loteLimpar" aria-label="Tirar seleção"><svg class="i"><use href="#i-x"/></svg></button>
+          </div>
         </div>
-        <div id="miniMapa"></div>
-        <p class="dica" id="pontoTxt">Ou clique no mapa para marcar o centro. Dá para arrastar o marcador.</p>
-        <div class="raio">
-          <div><label for="raioRange">Raio</label><input id="raioRange" type="range" min="0.5" max="20" step="0.5" value="2"></div>
-          <div><label for="raio">km</label><input id="raio" type="number" min="0.5" max="50" step="0.5" value="2"></div>
+      </div>
+    </section>
+
+    <!-- ================= FUNIL ================= -->
+    <section class="vista" id="vFunil" hidden style="overflow:hidden">
+      <div class="v-funil">
+        <div class="ferramentas">
+          <div class="campo-q"><svg class="i"><use href="#i-busca"/></svg><input type="search" id="kQ" placeholder="Filtrar cartões"></div>
+          <select id="kBusca" aria-label="Busca de origem"><option value="">Todas as buscas</option></select>
+          <select id="kOrdem" aria-label="Ordem dos cartões"><option value="score">Maior score primeiro</option><option value="retorno">Retorno mais próximo</option><option value="">Mais recentes</option></select>
+          <span class="contagem">Arraste os cartões entre as colunas para mudar o status.</span>
         </div>
-        <p class="dica">Até 3 km é uma busca só. Acima disso a área é dividida em quadrados, o que pega bem mais empresas e demora mais.</p>
+        <div class="quadro" id="quadro"></div>
       </div>
-    </div>
+    </section>
 
-    <div class="passo">
-      <h3>3. Quanto buscar</h3>
-      <div class="opcoes-linha">
-        <div>
-          <label for="prof">Resultados por segmento e cidade</label>
-          <select id="prof">
-            <option value="1">Poucos, para testar (até 20)</option>
-            <option value="5" selected>Normal (até 60)</option>
-            <option value="10">Máximo (até 120)</option>
-          </select>
+    <!-- ================= CONFIGURAÇÕES ================= -->
+    <section class="vista" id="vConfig" hidden>
+      <div class="v-config">
+        <div class="bloco">
+          <div class="bloco-topo"><h3>WhatsApp pelo Zapvu</h3><span class="estado-zap" id="zEstado">Não configurado</span></div>
+          <div class="bloco-corpo">
+            <p class="sub" style="margin:0">Com o Zapvu ligado, a mensagem sai pelo seu número sem abrir o WhatsApp Web, e dá para conferir quem tem WhatsApp de verdade. O envio é sempre um por vez, pelo botão, para não arriscar o número.</p>
+            <div class="tres">
+              <div><label for="zUrl">Endereço da API</label><input type="text" id="zUrl" placeholder="https://api.zapvu.com.br/v1"></div>
+              <div><label for="zInst">ID da instância</label><input type="text" id="zInst" placeholder="73f9b6f0…"></div>
+              <div><label for="zChave">Chave da instância</label><input type="password" id="zChave" placeholder="zv_…" autocomplete="off"></div>
+            </div>
+            <p class="dica" id="zChaveDica" style="margin-top:-6px">Use uma chave do tipo instância (zv_…), criada no painel do Zapvu. Ela fica só neste computador, no banco local.</p>
+            <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-pri" id="zSalvar">Salvar conexão</button><button class="btn" id="zTestar">Testar conexão</button><button class="btn" id="zTirar">Desligar Zapvu</button></div>
+          </div>
         </div>
-        <label class="marcar"><input type="checkbox" id="emails"> Procurar e-mail no site de cada empresa. Deixa a busca mais lenta.</label>
-      </div>
-    </div>
-
-    <div class="resumo">
-      <div class="txt" id="resumo">Escolha o segmento e o local.</div>
-      <button class="btn btn-principal" id="btnBuscar" disabled>Buscar empresas</button>
-    </div>
-    <p class="erro" id="erroBusca" role="alert"></p>
-  </form>
-
-  <aside class="historico">
-    <h2>Buscas</h2>
-    <div id="buscas"><p class="sub">Nenhuma busca ainda. Elas aparecem aqui com o andamento, e você pode continuar usando o sistema enquanto rodam.</p></div>
-  </aside>
-</section>
-
-<!-- ================= TELA 2: RESULTADOS ================= -->
-<section id="telaRes" class="tela-res" hidden>
-  <aside class="filtros" id="painelFiltros">
-    <div class="filtros-corpo">
-      <div class="grupo">
-        <h4>Busca</h4>
-        <select id="fBusca"><option value="">Todas as buscas</option></select>
-      </div>
-      <div class="grupo">
-        <h4>Cidades <button type="button" class="link" data-limpa="municipios" hidden>limpar</button></h4>
-        <input type="search" class="marcas-busca" data-procura="lCidades" placeholder="Procurar cidade" hidden>
-        <div class="marcas" id="lCidades"></div>
-      </div>
-      <div class="grupo">
-        <h4>Categorias <button type="button" class="link" data-limpa="categorias" hidden>limpar</button></h4>
-        <input type="search" class="marcas-busca" data-procura="lCategorias" placeholder="Procurar categoria" hidden>
-        <div class="marcas" id="lCategorias"></div>
-      </div>
-      <div class="grupo">
-        <h4>Contato e presença online</h4>
-        <div class="toggles" id="tContato">
-          <button type="button" data-k="whats" data-v="sim">Tem celular</button>
-          <button type="button" data-k="whats" data-v="nao">Só fixo ou sem</button>
-          <button type="button" data-k="site" data-v="nao">Sem site</button>
-          <button type="button" data-k="site" data-v="sim">Tem site</button>
-          <button type="button" data-k="insta" data-v="sim">Tem Instagram</button>
-          <button type="button" data-k="email" data-v="sim">Tem e-mail</button>
-          <button type="button" data-k="reivindicado" data-v="nao">Perfil sem dono</button>
+        <div class="bloco">
+          <div class="bloco-topo"><h3>Pesos do score de oportunidade</h3><button class="link" id="pPadrao">Voltar ao padrão</button></div>
+          <div class="bloco-corpo">
+            <p class="sub" style="margin:0">Dê mais peso ao que importa para o que você vende. A soma é convertida para uma nota de 0 a 100.</p>
+            <div id="listaPesos" style="display:grid;gap:10px"></div>
+            <div><button class="btn btn-pri" id="pSalvar">Salvar pesos</button></div>
+          </div>
         </div>
       </div>
-      <div class="grupo">
-        <h4>Nota no Google</h4>
-        <div class="faixa"><input type="number" id="fNotaMin" placeholder="de 1,0" step="0.1" min="1" max="5" aria-label="Nota mínima"><input type="number" id="fNotaMax" placeholder="até 5,0" step="0.1" min="1" max="5" aria-label="Nota máxima"></div>
-      </div>
-      <div class="grupo">
-        <h4>Número de avaliações</h4>
-        <div class="faixa"><input type="number" id="fAvalMin" placeholder="de 0" min="0" aria-label="Avaliações mínimas"><input type="number" id="fAvalMax" placeholder="até" min="0" aria-label="Avaliações máximas"></div>
-      </div>
-      <div class="grupo">
-        <h4>Status</h4>
-        <div class="toggles" id="tStatus"></div>
-        <p class="dica">Sem nenhum marcado, mostra todos menos "Não contatar".</p>
-      </div>
-      <div class="grupo">
-        <h4>Bairro</h4>
-        <input type="text" id="fBairro" placeholder="ex.: Centro">
-      </div>
-      <div class="grupo">
-        <h4>Distância</h4>
-        <label class="marcar"><input type="checkbox" id="fRaio"> Só até <input type="number" id="fRaioKm" value="3" min="0.5" step="0.5" style="width:70px;min-height:30px;padding:2px 6px;margin:0 4px"> km do ponto</label>
-        <p class="dica" id="dicaPonto">Clique no mapa para marcar um ponto e ver a distância de cada empresa.</p>
-      </div>
-    </div>
-    <div class="filtros-pe">
-      <button type="button" class="btn" id="limpar">Limpar filtros</button>
-      <button type="button" class="btn btn-principal" id="exportar">Baixar CSV</button>
-    </div>
-  </aside>
+    </section>
 
-  <div class="res-main">
-    <div id="mapa"></div>
-    <div class="barra">
-      <button type="button" class="btn abrir-filtros" id="abrirFiltros">Filtros</button>
-      <input type="search" id="fQ" placeholder="Procurar por nome, endereço ou anotação">
-      <select id="fOrdem" aria-label="Ordenar">
-        <option value="">Mais recentes</option>
-        <option value="distancia">Mais perto do ponto</option>
-        <option value="nota_asc">Pior nota primeiro</option>
-        <option value="nota_desc">Melhor nota primeiro</option>
-        <option value="avaliacoes_asc">Menos avaliações</option>
-        <option value="avaliacoes_desc">Mais avaliações</option>
-        <option value="nome">Nome (A–Z)</option>
-      </select>
-      <span class="contagem" id="contagem"></span>
-    </div>
-    <div class="lista">
-      <table>
-        <thead><tr><th>Empresa</th><th>Nota</th><th>Contato</th><th class="col-local">Local</th><th class="col-dist">Distância</th><th>Status</th></tr></thead>
-        <tbody id="tbody"></tbody>
-      </table>
-    </div>
+    <!-- ================= HISTÓRICO ================= -->
+    <section class="vista" id="vHistorico" hidden>
+      <div class="v-hist">
+        <div class="bloco" style="overflow:hidden">
+          <table>
+            <thead><tr><th>#</th><th>Segmentos</th><th>Onde</th><th>Situação</th><th class="num">Empresas</th><th class="num">Novas</th><th>Quando</th><th>Repetir sozinha</th><th></th></tr></thead>
+            <tbody id="histBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
   </div>
-</section>
+</div>
 
-<div class="detalhe" id="detalhe" aria-hidden="true"></div>
+<aside class="detalhe" id="detalhe" aria-hidden="true" aria-label="Detalhes da empresa"></aside>
+<div class="avisos" id="avisos" aria-live="polite"></div>
+
+<div class="fundo-modal" id="paleta" hidden>
+  <div class="modal" role="dialog" aria-label="Procurar">
+    <div class="paleta-in"><svg class="i"><use href="#i-busca"/></svg><input id="paletaIn" type="text" placeholder="Procure uma empresa ou digite um comando" autocomplete="off"></div>
+    <div class="paleta-res" id="paletaRes"></div>
+    <div class="paleta-pe"><span><kbd>↑</kbd> <kbd>↓</kbd> navegar</span><span><kbd>Enter</kbd> abrir</span><span><kbd>Esc</kbd> fechar</span></div>
+  </div>
+</div>
+
+<datalist id="dlTags"></datalist>
+<div class="fundo-modal" id="modalLista" hidden>
+  <div class="modal" role="dialog" aria-label="Salvar lista" style="width:440px">
+    <div class="modal-topo"><h3>Salvar lista</h3><button class="fechar" style="position:static" data-fecha="modalLista" aria-label="Fechar"><svg class="i"><use href="#i-x"/></svg></button></div>
+    <form id="formLista"><div class="modal-corpo"><p class="sub" style="margin:0">Guarda os filtros atuais com um nome. A lista aparece no menu, embaixo de Leads, e se atualiza sozinha quando chegam empresas novas.</p>
+      <div><label for="nomeLista">Nome</label><input type="text" id="nomeLista" placeholder="ex.: Barbearias sem site em Ipatinga" maxlength="80" required></div></div>
+      <div class="modal-pe"><span></span><button class="btn btn-pri" type="submit">Salvar lista</button></div></form>
+  </div>
+</div>
+
+<div class="fundo-modal" id="modelos" hidden>
+  <div class="modal" role="dialog" aria-label="Modelos de mensagem">
+    <div class="modal-topo"><h3>Modelos de mensagem</h3><button class="fechar" style="position:static" data-fecha="modelos" aria-label="Fechar"><svg class="i"><use href="#i-x"/></svg></button></div>
+    <div class="modal-corpo">
+      <p class="sub" style="margin:0">Use no texto: <b>{nome}</b>, <b>{cidade}</b>, <b>{bairro}</b>, <b>{categoria}</b> e <b>{nota}</b>. Eles são trocados pelos dados da empresa na hora de abrir o WhatsApp.</p>
+      <div id="listaModelos" style="display:grid;gap:10px"></div>
+    </div>
+    <div class="modal-pe"><button class="btn" id="novoModelo"><svg class="i"><use href="#i-mais"/></svg>Novo modelo</button><button class="btn btn-pri" id="salvarModelos">Salvar modelos</button></div>
+  </div>
+</div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 const NOMES_STATUS = { novo: "Novo", contatar: "Contatar", contatado: "Contatado", interessado: "Interessado", cliente: "Cliente", descartado: "Descartado", nao_contatar: "Não contatar" };
-const COR_STATUS = { novo: "#5a6b75", contatar: "#1f5fbf", contatado: "#b07d10", interessado: "#0b6e4f", cliente: "#0b6e4f", descartado: "#a3adb3", nao_contatar: "#b3401c" };
+const STATUS = Object.keys(NOMES_STATUS);
 const SEGMENTOS = ["padaria", "pet shop", "barbearia", "salão de beleza", "academia", "clínica odontológica", "farmácia", "restaurante", "lanchonete", "pizzaria", "oficina mecânica", "auto peças", "loja de roupas", "ótica", "supermercado", "material de construção", "imobiliária", "escritório de contabilidade", "clínica médica", "clínica veterinária", "escola", "hotel", "pousada", "açougue", "sorveteria", "lavanderia", "estética", "fisioterapia", "papelaria", "loja de celulares"];
+// Mesmos critérios de CRITERIOS_SCORE em app.py; os pesos vêm de /api/config
+const TESTES = {
+  whats: l => !!l.whatsapp, sem_site: l => !l.site, sem_dono: l => !l.reivindicado,
+  poucas_aval: l => (l.avaliacoes || 0) < 20, nota_baixa: l => l.nota != null && l.nota < 4.2, contato_extra: l => !!(l.emails || l.instagram),
+};
+let CONFIG = { pesos: [], zapvu: { ativo: false } };
+async function carregarConfig() { CONFIG = await api("/api/config"); $("#loteConferir").hidden = !CONFIG.zapvu.ativo; }
 const fmtNum = (v, d = 1) => v == null ? "" : Number(v).toLocaleString("pt-BR", { minimumFractionDigits: d, maximumFractionDigits: d });
 const fmtInt = v => Number(v || 0).toLocaleString("pt-BR");
+const pct = (a, b) => b ? Math.round(100 * a / b) + "%" : "–";
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const soDig = s => String(s || "").replace(/\D/g, "");
+const ic = n => `<svg class="i"><use href="#i-${n}"/></svg>`;
+const corStatus = s => getComputedStyle(document.documentElement).getPropertyValue("--st-" + s).trim();
 const api = async (url, op) => { const r = await fetch(url, op); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(typeof j.detail === "string" ? j.detail : "Algo deu errado. Tente de novo."); return j; };
+const json = (method, corpo) => ({ method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(corpo) });
 const debounce = (fn, ms = 250) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
+const hojeISO = (soma = 0) => { const d = new Date(); d.setDate(d.getDate() + soma); return d.toLocaleDateString("sv-SE"); };
+const fmtData = iso => iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}` : "";
+function quando(iso) {
+  if (!iso) return "";
+  const d = new Date(iso), seg = (Date.now() - d) / 1000;
+  if (seg < 60) return "agora";
+  if (seg < 3600) return `há ${Math.floor(seg / 60)} min`;
+  if (seg < 86400) return `há ${Math.floor(seg / 3600)} h`;
+  if (seg < 86400 * 7) return `há ${Math.floor(seg / 86400)} d`;
+  return d.toLocaleDateString("pt-BR");
+}
+function retornoTag(iso) {
+  if (!iso) return "";
+  const h = hojeISO(), cls = iso < h ? "atrasado" : iso === h ? "hoje" : "";
+  const txt = iso === h ? "Hoje" : iso === hojeISO(1) ? "Amanhã" : fmtData(iso);
+  return `<span class="retorno-tag ${cls}">${iso < h ? "Atrasado · " : ""}${txt}</span>`;
+}
+const scoreCls = s => s >= 70 ? "s3" : s >= 40 ? "s2" : "s1";
+const scoreHTML = s => `<span class="score ${scoreCls(s || 0)}" title="Score de oportunidade">${s ?? 0}</span>`;
+
+/* ===================== avisos ===================== */
+function aviso(txt, acao, ms = 5000) {
+  const el = document.createElement("div"); el.className = "aviso";
+  el.innerHTML = `<span>${txt}</span>`;
+  if (acao) { const b = document.createElement("button"); b.className = "link"; b.textContent = acao.rotulo; b.onclick = () => { acao.fn(); el.remove(); }; el.append(b); }
+  $("#avisos").append(el); setTimeout(() => el.remove(), ms);
+}
+
+/* ===================== cache de leads ===================== */
+const CACHE = new Map();
+function guardar(lista) { return lista.map(l => { const o = CACHE.get(l.id); if (o) { Object.assign(o, l); return o; } CACHE.set(l.id, l); return l; }); }
+
+/* ===================== tema ===================== */
+function aplicarTema(t) {
+  document.documentElement.dataset.theme = t; localStorage.setItem("tema", t);
+  $("#tema").innerHTML = t === "dark" ? `${ic("sol")}<span>Tema claro</span>` : `${ic("lua")}<span>Tema escuro</span>`;
+  if (mapa) { desenharMapa(); desenharLegenda(); }
+  if (VISTA === "painel" && PAINEL) desenharPainel(PAINEL);
+  if (VISTA === "funil") desenharFunil();
+}
+// OpenStreetMap; no tema escuro os blocos do mapa são escurecidos por CSS (.mapa-base)
+function camadaBase(m) { L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, className: "mapa-base", attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' }).addTo(m); }
+$("#tema").onclick = () => aplicarTema(document.documentElement.dataset.theme === "dark" ? "light" : "dark");
 
 /* ===================== rotas ===================== */
+const VISTAS = {
+  painel: { titulo: "Painel", sub: "Como está sua prospecção" },
+  buscar: { titulo: "Nova busca", sub: "Traga empresas do Google Maps para a base" },
+  leads: { titulo: "Leads", sub: "" },
+  funil: { titulo: "Funil", sub: "Cada coluna é um status" },
+  historico: { titulo: "Histórico de buscas", sub: "Tudo o que já foi buscado" },
+  config: { titulo: "Configurações", sub: "WhatsApp e score" },
+};
+let VISTA = "painel";
 function rota() {
-  const [caminho, qs] = (location.hash.slice(1) || "/buscar").split("?");
-  const res = caminho.startsWith("/resultados");
-  $("#telaBusca").hidden = res; $("#telaRes").hidden = !res;
-  $("#navBuscar").removeAttribute("aria-current"); $("#navRes").removeAttribute("aria-current");
-  (res ? $("#navRes") : $("#navBuscar")).setAttribute("aria-current", "page");
+  let [caminho, qs] = (location.hash.slice(1) || "/painel").split("?");
+  let v = caminho.replace("/", "") || "painel";
+  if (v === "resultados") v = "leads";
+  if (!VISTAS[v]) v = "painel";
+  VISTA = v;
+  for (const k of Object.keys(VISTAS)) $("#v" + k[0].toUpperCase() + k.slice(1)).hidden = k !== v;
+  $$(".nav a[data-v]").forEach(a => a.dataset.v === v ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current"));
+  $("#titulo").textContent = VISTAS[v].titulo; $("#subtitulo").textContent = VISTAS[v].sub;
+  $("#btnNova").hidden = v === "buscar";
+  $("#sidebar").classList.remove("aberta");
   fechar();
-  if (res) {
+  $$("#navListas a").forEach(a => a.dataset.lista === new URLSearchParams(qs || "").get("lista") && v === "leads" ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current"));
+  if (v === "leads") {
     const p = new URLSearchParams(qs || "");
-    if (p.has("busca")) { F.busca = p.get("busca"); }
-    abrirResultados();
-  } else {
-    setTimeout(() => miniMapa && miniMapa.invalidateSize(), 50);
+    if (p.has("lista")) {
+      (LISTAS.length ? Promise.resolve() : carregarListas()).then(() => {
+        const l = LISTAS.find(x => String(x.id) === p.get("lista"));
+        if (l) { aplicarParams(l.params); $("#subtitulo").textContent = l.nome; }
+        abrirLeads();
+      });
+      return;
+    }
+    if (p.has("busca")) F.busca = p.get("busca");
+    abrirLeads();
   }
+  else if (v === "buscar") setTimeout(() => miniMapa && miniMapa.invalidateSize(), 50);
+  else if (v === "painel") carregarPainel();
+  else if (v === "funil") carregarFunil();
+  else if (v === "historico") desenharHistorico();
+  else if (v === "config") abrirConfig();
 }
 window.addEventListener("hashchange", rota);
+$("#menuMob").onclick = () => $("#sidebar").classList.toggle("aberta");
 
-/* ===================== TELA DE BUSCA ===================== */
+/* ===================== PAINEL ===================== */
+let PAINEL = null;
+async function carregarPainel() { PAINEL = await api("/api/painel"); PAINEL.quentes = guardar(PAINEL.quentes); PAINEL.retornos = guardar(PAINEL.retornos); desenharPainel(PAINEL); }
+function desenharPainel(p) {
+  const k = p.kpis, el = $("#painel");
+  if (!k.total) {
+    el.innerHTML = `<div class="bloco boas-vindas">
+      <div><h2>Monte sua lista de empresas para prospectar</h2>
+      <p>A Base de Leads procura empresas no Google Maps por segmento e cidade, guarda tudo aqui e mostra quais têm mais chance de virar cliente.</p>
+      <a class="btn btn-pri" href="#/buscar">${ic("radar")}Fazer a primeira busca</a></div>
+      <ol><li><span><b>Escolha segmento e local</b>Ex.: barbearias em Ipatinga, ou tudo num raio de 3 km.</span></li>
+      <li><span><b>Veja quem vale a pena</b>O score soma celular, falta de site, perfil sem dono e poucas avaliações.</span></li>
+      <li><span><b>Aborde e acompanhe</b>Mensagem pronta no WhatsApp, retorno marcado e funil por status.</span></li></ol></div>`;
+    return;
+  }
+  const kpi = (rot, val, det, href, destaque) => `<${href ? `a href="${href}"` : "div"} class="kpi ${destaque ? "destaque" : ""}"><span class="rot">${rot}</span><span class="val num">${val}</span><span class="det">${det}</span></${href ? "a" : "div"}>`;
+  const trabalhados = k.trabalhados;
+  el.innerHTML = `
+    <div class="kpis">
+      ${kpi("Empresas na base", fmtInt(k.total), `+${fmtInt(k.novos_7d)} nos últimos 7 dias`, "#/leads")}
+      ${kpi("Com celular", pct(k.whats, k.total), `${fmtInt(k.whats)} dá para chamar no WhatsApp`)}
+      ${kpi("Sem site", pct(k.sem_site, k.total), `${fmtInt(k.sem_site)} empresas`)}
+      ${kpi("Prontas para abordar", fmtInt(k.quentes), "score 70+ e ainda não contatadas", "javascript:comando('quentes')", true)}
+      ${kpi("Retornos para hoje", fmtInt(k.retornos_pendentes), k.retornos_pendentes ? "incluindo os atrasados" : "nada pendente", "javascript:comando('retornos')")}
+      ${kpi("Clientes", fmtInt(k.clientes), trabalhados ? `${pct(k.clientes, trabalhados)} dos ${fmtInt(trabalhados)} já trabalhados` : "nenhum lead trabalhado ainda", "#/funil")}
+    </div>
+    <div class="bloco c12"><div class="bloco-corpo atencao">
+      <a href="#" onclick="event.preventDefault();irFiltro({duplicado:'sim'})"><b class="num">${fmtInt(k.duplicados)}</b><span>com telefone repetido (possível duplicado)</span></a>
+      <a href="#" onclick="event.preventDefault();irFiltro({mudou:'7d'})"><b class="num">${fmtInt(k.mudancas_7d)}</b><span>mudaram no Google nos últimos 7 dias (nota, site, telefone)</span></a>
+      <a href="#" onclick="event.preventDefault();irFiltro({zap_conferido:'pendente'})"><b class="num">${fmtInt(k.zap_pendente)}</b><span>com telefone ainda sem WhatsApp conferido${CONFIG.zapvu.ativo ? "" : " (ligue o Zapvu em Configurações)"}</span></a>
+    </div></div>
+    <div class="bloco c8"><div class="bloco-topo"><h3>Empresas novas por dia</h3><span class="sub">últimos 30 dias</span></div><div class="bloco-corpo grafico-dias" id="gDias"></div></div>
+    <div class="bloco c4"><div class="bloco-topo"><h3>Funil</h3><a class="sub" href="#/funil">Abrir quadro</a></div><div class="bloco-corpo"><div class="barras-h" id="gFunil"></div></div></div>
+    <div class="bloco c6"><div class="bloco-topo"><h3>Prontas para abordar</h3><span class="sub">maior score entre Novo e Contatar</span></div><div class="bloco-corpo"><div class="linhas-lead" id="lQuentes"></div></div></div>
+    <div class="bloco c6"><div class="bloco-topo"><h3>Próximos retornos</h3><span class="sub">por data</span></div><div class="bloco-corpo"><div class="linhas-lead" id="lRetornos"></div></div></div>
+    <div class="bloco c6"><div class="bloco-topo"><h3>Categorias na base</h3><span class="sub">quantidade e score médio</span></div><div class="bloco-corpo"><div class="barras-h" id="gCat"></div></div></div>
+    <div class="bloco c6"><div class="bloco-topo"><h3>Atividade recente</h3></div><div class="bloco-corpo"><ul class="tempo" id="lAtiv" style="margin:0"></ul></div></div>`;
+  graficoDias(p.por_dia);
+  const maxF = Math.max(1, ...p.funil.map(f => f.n));
+  $("#gFunil").innerHTML = p.funil.map(f => `<div class="bh" title="${NOMES_STATUS[f.id]}: ${fmtInt(f.n)}"><span class="nome"><i class="ponto" style="background:${corStatus(f.id)}"></i>${NOMES_STATUS[f.id]}</span><span class="trilho"><i style="width:${100 * f.n / maxF}%;background:${corStatus(f.id)}"></i></span><span class="v">${fmtInt(f.n)}</span></div>`).join("");
+  const linha = (l, extra) => `<div class="ll" onclick="abrir('${esc(l.id)}')"><div style="min-width:0"><div class="t">${esc(l.nome)}</div><div class="sub">${esc([l.categoria, l.cidade].filter(Boolean).join(" em "))}</div></div>${extra}${scoreHTML(l.score)}</div>`;
+  $("#lQuentes").innerHTML = p.quentes.length ? p.quentes.map(l => linha(l, l.whatsapp ? `<button class="btn btn-sm" onclick="event.stopPropagation();abrir('${esc(l.id)}', true)">${ic("zap")}Mensagem</button>` : "<span></span>")).join("") : `<p class="vazio-bloco">Nenhuma empresa nova ou para contatar.</p>`;
+  $("#lRetornos").innerHTML = p.retornos.length ? p.retornos.map(l => linha(l, retornoTag(l.retorno))).join("") : `<p class="vazio-bloco">Nenhum retorno marcado. Marque a data no detalhe de uma empresa.</p>`;
+  const maxC = Math.max(1, ...p.categorias.map(c => c.n));
+  $("#gCat").innerHTML = p.categorias.map(c => `<div class="bh" style="grid-template-columns:150px minmax(0,1fr) 92px" title="${esc(c.nome)}: ${fmtInt(c.n)} empresas, score médio ${c.score}"><span class="nome">${esc(c.nome)}</span><span class="trilho"><i style="width:${100 * c.n / maxC}%;background:var(--acento)"></i></span><span class="v">${fmtInt(c.n)} <small>· score ${c.score}</small></span></div>`).join("") || `<p class="vazio-bloco">Sem categorias.</p>`;
+  $("#lAtiv").innerHTML = p.atividades.length ? p.atividades.map(a => `<li><span class="bola ${a.tipo}"></span><div><a href="#" onclick="event.preventDefault();abrir('${esc(a.lead_id)}')">${esc(a.nome)}</a> <span class="sub">${esc(rotuloAtiv(a))}</span><div class="quando">${quando(a.criado)}</div></div></li>`).join("") : `<p class="vazio-bloco">Mudanças de status, mensagens e anotações aparecem aqui.</p>`;
+}
+function graficoDias(dias) {
+  const W = 760, H = 190, pe = 22, topo = 10, max = Math.max(1, ...dias.map(d => d.n));
+  const passo = W / dias.length, larg = Math.max(4, passo - 6);
+  const y = v => topo + (H - pe - topo) * (1 - v / max);
+  const barras = dias.map((d, i) => {
+    const x = i * passo + (passo - larg) / 2, yy = y(d.n), h = H - pe - yy;
+    const r = Math.min(4, h, larg / 2);
+    const path = d.n ? `M${x},${H - pe} V${yy + r} Q${x},${yy} ${x + r},${yy} H${x + larg - r} Q${x + larg},${yy} ${x + larg},${yy + r} V${H - pe} Z` : "";
+    return `<g data-i="${i}"><rect x="${i * passo}" y="0" width="${passo}" height="${H - pe}" fill="transparent"/>${path ? `<path d="${path}" fill="var(--acento)"/>` : ""}</g>`;
+  }).join("");
+  const rot = [0, 14, 29].map(i => `<text x="${i * passo + passo / 2}" y="${H - 5}" text-anchor="${i === 0 ? "start" : i === 29 ? "end" : "middle"}" font-size="11" fill="var(--apagado)">${fmtData(dias[i].dia)}</text>`).join("");
+  $("#gDias").innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Empresas novas por dia nos últimos 30 dias">
+    <line x1="0" x2="${W}" y1="${y(max)}" y2="${y(max)}" stroke="var(--linha)" stroke-dasharray="2 4"/>
+    <text x="${W}" y="${y(max) - 3}" text-anchor="end" font-size="11" fill="var(--fraco)">${fmtInt(max)}</text>
+    ${barras}<line x1="0" x2="${W}" y1="${H - pe}" y2="${H - pe}" stroke="var(--linha-forte)"/>${rot}</svg><div class="dica-graf" hidden></div>`;
+  const svg = $("#gDias svg"), dica = $("#gDias .dica-graf");
+  svg.addEventListener("mousemove", e => {
+    const g = e.target.closest("g[data-i]"); if (!g) { dica.hidden = true; return; }
+    const d = dias[g.dataset.i], b = svg.getBoundingClientRect(), wrap = $("#gDias").getBoundingClientRect();
+    const i = Number(g.dataset.i);
+    dica.innerHTML = `<b>${fmtInt(d.n)}</b> ${d.n === 1 ? "empresa nova" : "empresas novas"} em ${new Date(d.dia + "T12:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}`;
+    dica.hidden = false; dica.style.left = (b.left - wrap.left + (i + .5) * b.width / dias.length) + "px"; dica.style.top = (b.top - wrap.top + y(d.n) * b.height / H - 6) + "px";
+  });
+  svg.addEventListener("mouseleave", () => dica.hidden = true);
+}
+function rotuloAtiv(a) {
+  return { visita: a.texto ? `Visita: ${a.texto}` : "Visita", mudanca: `Mudou no Google: ${a.texto}`, conferido: a.texto, status: a.texto, nota: a.texto ? `Anotação: ${a.texto}` : "Anotação", whatsapp: a.texto ? `WhatsApp: ${a.texto}` : "Abriu o WhatsApp", ligacao: a.texto ? `Ligação: ${a.texto}` : "Ligação", email: a.texto ? `E-mail: ${a.texto}` : "E-mail enviado", retorno: a.texto }[a.tipo] || a.texto || a.tipo;
+}
+
+/* ===================== NOVA BUSCA ===================== */
 const B = { termos: [], modo: "cidade", cidades: [], ponto: null };
-
-// --- segmentos
 function desenharTermos() {
   $("#chipsTermos").innerHTML = B.termos.map((t, i) => `<span class="chip">${esc(t)}<button type="button" aria-label="Tirar ${esc(t)}" onclick="tirarTermo(${i})">×</button></span>`).join("");
   const usados = new Set(B.termos.map(t => t.toLowerCase()));
@@ -403,8 +1041,6 @@ $("#inTermo").addEventListener("keydown", e => {
   else if (e.key === "Backspace" && !e.target.value && B.termos.length) { B.termos.pop(); desenharTermos(); }
 });
 $("#inTermo").addEventListener("blur", e => { if (e.target.value.trim()) addTermo(e.target.value); });
-
-// --- abas
 $$(".abas button").forEach(b => b.onclick = () => {
   B.modo = b.dataset.modo;
   $$(".abas button").forEach(x => x.setAttribute("aria-pressed", x === b));
@@ -413,13 +1049,12 @@ $$(".abas button").forEach(b => b.onclick = () => {
   atualizarResumo();
 });
 
-// --- seletor com sugestões (cidade / região / CEP), usado nos dois modos
 function seletor(input, lista, aoEscolher, { regioes = true } = {}) {
   let itens = [], idx = -1;
   const fechar = () => { lista.hidden = true; input.setAttribute("aria-expanded", "false"); idx = -1; };
   const desenhar = blocos => {
     itens = blocos.flatMap(b => b.itens);
-    if (!itens.length) { lista.innerHTML = `<div class="opcao sub">${blocos.vazio || "Nada encontrado. Confira o nome ou digite o CEP."}</div>`; }
+    if (!itens.length) lista.innerHTML = `<div class="opcao sub">${blocos.vazio || "Nada encontrado. Confira o nome ou digite o CEP."}</div>`;
     else {
       let i = 0;
       lista.innerHTML = blocos.filter(b => b.itens.length).map(b => (b.titulo ? `<div class="opcao-titulo">${b.titulo}</div>` : "") +
@@ -434,12 +1069,11 @@ function seletor(input, lista, aoEscolher, { regioes = true } = {}) {
     if (q.length < 2) return fechar();
     const dig = soDig(q);
     if (dig.length >= 5 && /^[\d\s.-]+$/.test(q)) {
-      if (dig.length < 8) return desenhar([{ itens: [], vazio: "Continue digitando o CEP (8 números)." }]);
+      if (dig.length < 8) return desenhar(Object.assign([{ itens: [] }], { vazio: "Continue digitando o CEP (8 números)." }));
       try {
-        const c = await api(`/api/cep/${dig}`);
-        const m = c.municipio;
+        const c = await api(`/api/cep/${dig}`), m = c.municipio;
         desenhar([{ titulo: "CEP", itens: [{ tipo: "cep", dado: c, html: `<b>${esc(m ? m.nome + " - " + m.uf : c.cidade + " - " + c.uf)}</b> · ${esc([c.rua, c.bairro].filter(Boolean).join(", "))}`, extra: `CEP ${dig.slice(0, 5)}-${dig.slice(5)}` }] }]);
-      } catch (e) { desenhar([{ itens: [], vazio: esc(e.message) }]); }
+      } catch (e) { desenhar(Object.assign([{ itens: [] }], { vazio: esc(e.message) })); }
       return;
     }
     const r = await api(`/api/municipios?q=${encodeURIComponent(q)}`);
@@ -459,7 +1093,6 @@ function seletor(input, lista, aoEscolher, { regioes = true } = {}) {
   input.addEventListener("blur", () => setTimeout(fechar, 120));
 }
 
-// --- cidades
 function addCidades(lista) {
   const ids = new Set(B.cidades.map(c => c.id));
   lista.forEach(c => { if (!ids.has(c.id)) { B.cidades.push({ id: c.id, nome: c.nome, uf: c.uf }); ids.add(c.id); } });
@@ -479,12 +1112,11 @@ seletor($("#inCidade"), $("#opCidade"), async it => {
   else if (it.tipo === "regiao") addCidades(await api(`/api/regioes/${it.dado.id}`));
 });
 
-// --- ponto + raio
 let miniMapa, mmMarca, mmCirculo;
 function iniciarMiniMapa() {
   if (miniMapa) return;
   miniMapa = L.map("miniMapa").setView([-15.78, -47.93], 4);
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(miniMapa);
+  camadaBase(miniMapa);
   miniMapa.on("click", e => marcarPonto(e.latlng.lat, e.latlng.lng, "ponto marcado no mapa"));
   const salvo = JSON.parse(localStorage.getItem("pontoBusca") || "null");
   if (salvo) marcarPonto(salvo.lat, salvo.lon, salvo.rotulo, true);
@@ -493,10 +1125,11 @@ function raioKm() { return Math.max(0.5, Number($("#raio").value) || 2); }
 function marcarPonto(lat, lon, rotulo, enquadrar) {
   B.ponto = { lat, lon, rotulo };
   localStorage.setItem("pontoBusca", JSON.stringify(B.ponto));
+  const cor = getComputedStyle(document.documentElement).getPropertyValue("--acento").trim();
   if (!mmMarca) {
     mmMarca = L.marker([lat, lon], { draggable: true }).addTo(miniMapa);
     mmMarca.on("dragend", e => { const p = e.target.getLatLng(); marcarPonto(p.lat, p.lng, "ponto marcado no mapa"); });
-    mmCirculo = L.circle([lat, lon], { radius: raioKm() * 1000, color: "#0b6e4f", weight: 1.5, fillOpacity: .07 }).addTo(miniMapa);
+    mmCirculo = L.circle([lat, lon], { radius: raioKm() * 1000, color: cor, weight: 1.5, fillOpacity: .08 }).addTo(miniMapa);
   } else { mmMarca.setLatLng([lat, lon]); mmCirculo.setLatLng([lat, lon]); }
   if (enquadrar) miniMapa.fitBounds(mmCirculo.getBounds(), { padding: [20, 20] });
   $("#pontoTxt").innerHTML = `Centro: <b>${esc(rotulo)}</b> <span class="sub" style="font-family:var(--mono)">${lat.toFixed(5)}, ${lon.toFixed(5)}</span>. Arraste o marcador para ajustar.`;
@@ -512,24 +1145,21 @@ $("#raio").addEventListener("change", e => mudarRaio(e.target.value));
 seletor($("#inPonto"), $("#opPonto"), it => {
   if (it.tipo === "cep") {
     const c = it.dado;
-    const rot = `${[c.rua, c.bairro].filter(Boolean).join(", ")} - ${c.cidade}/${c.uf}` + (c.precisao === "cidade" ? " (centro da cidade, o CEP não tem coordenada)" : "");
-    marcarPonto(c.lat, c.lon, rot, true);
+    marcarPonto(c.lat, c.lon, `${[c.rua, c.bairro].filter(Boolean).join(", ")} - ${c.cidade}/${c.uf}` + (c.precisao === "cidade" ? " (centro da cidade, o CEP não tem coordenada)" : ""), true);
   } else if (it.tipo === "cidade") marcarPonto(it.dado.lat, it.dado.lon, `centro de ${it.dado.nome} - ${it.dado.uf}`, true);
 }, { regioes: false });
 $("#minhaLocal").onclick = () => {
   if (!navigator.geolocation) return erroBusca("Este navegador não informa a localização. Use o CEP.");
-  $("#minhaLocal").textContent = "Localizando…";
+  const b = $("#minhaLocal"), orig = b.innerHTML; b.textContent = "Localizando…";
   navigator.geolocation.getCurrentPosition(
-    p => { $("#minhaLocal").textContent = "Minha localização"; marcarPonto(p.coords.latitude, p.coords.longitude, "sua localização", true); },
-    () => { $("#minhaLocal").textContent = "Minha localização"; erroBusca("Não consegui sua localização. Digite o CEP ou clique no mapa."); },
+    p => { b.innerHTML = orig; marcarPonto(p.coords.latitude, p.coords.longitude, "sua localização", true); },
+    () => { b.innerHTML = orig; erroBusca("Não consegui sua localização. Digite o CEP ou clique no mapa."); },
     { timeout: 10000 });
 };
 
-// --- resumo e envio
 function consultas() { return B.termos.length * (B.modo === "cidade" ? B.cidades.length : 1); }
 function atualizarResumo() {
-  const n = consultas();
-  let txt;
+  const n = consultas(); let txt;
   if (!B.termos.length) txt = "Falta escolher pelo menos um segmento.";
   else if (B.modo === "cidade" && !B.cidades.length) txt = "Falta escolher pelo menos uma cidade.";
   else if (B.modo === "ponto" && !B.ponto) txt = "Falta marcar o centro (CEP, cidade, mapa ou sua localização).";
@@ -544,89 +1174,120 @@ $("#formBusca").onsubmit = async e => {
   e.preventDefault(); erroBusca();
   const corpo = { termos: B.termos, modo: B.modo, profundidade: Number($("#prof").value), emails: $("#emails").checked };
   if (B.modo === "cidade") corpo.cidades = B.cidades; else Object.assign(corpo, { lat: B.ponto.lat, lon: B.ponto.lon, raio_km: raioKm() });
-  $("#btnBuscar").disabled = true; $("#btnBuscar").textContent = "Enviando…";
-  try { await api("/api/buscas", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(corpo) }); carregarBuscas(); }
+  const btn = $("#btnBuscar"), orig = btn.innerHTML;
+  btn.disabled = true; btn.textContent = "Enviando…";
+  try { const r = await api("/api/buscas", json("POST", corpo)); aviso(`Busca #${r.id} começou. Ela roda em segundo plano.`); carregarBuscas(); }
   catch (err) { erroBusca(err.message); }
-  finally { $("#btnBuscar").textContent = "Buscar empresas"; atualizarResumo(); }
+  finally { btn.innerHTML = orig; atualizarResumo(); }
 };
 
-// --- histórico
-const SITUACAO = { na_fila: "na fila", rodando: "buscando", pronta: "pronta", erro: "deu erro", cancelada: "parada" };
-let BUSCAS = [], rodandoAntes = false;
+/* ===================== BUSCAS / HISTÓRICO ===================== */
+const SITUACAO = { na_fila: "Na fila", rodando: "Buscando", pronta: "Pronta", erro: "Deu erro", cancelada: "Parada" };
+let BUSCAS = [], estadoAntes = {};
 function rotuloBusca(b) {
   const onde = b.modo === "cidade" ? (b.cidades.length > 2 ? `${b.cidades.length} cidades` : b.cidades.map(c => `${c.nome} - ${c.uf}`).join(", ") || b.cidade) : `raio de ${fmtNum(b.raio_km)} km`;
   return { termos: b.termos.split("\n").join(", "), onde };
 }
+function acoesBusca(b) {
+  const rodando = ["rodando", "na_fila"].includes(b.situacao), a = [];
+  if (["pronta", "cancelada"].includes(b.situacao) && b.encontrados) a.push(`<a href="#/leads?busca=${b.id}">Ver empresas</a>`);
+  if (rodando) a.push(`<button class="link link-perigo" onclick="cancelar(${b.id})">Parar</button>`);
+  if (["erro", "cancelada"].includes(b.situacao) || (b.situacao === "pronta" && !b.encontrados)) a.push(`<button class="link" onclick="repetir(${b.id})">Rodar de novo</button>`);
+  if (!rodando && !b.encontrados) a.push(`<button class="link" onclick="apagarBusca(${b.id})">Tirar da lista</button>`);
+  return a;
+}
+function infoBusca(b) {
+  if (b.situacao === "rodando") return `${fmtInt(b.parcial)} empresas até agora` + (b.consultas > 1 ? ` · ${b.consultas} consultas` : "");
+  if (["pronta", "cancelada"].includes(b.situacao)) return `${fmtInt(b.encontrados)} empresas, ${fmtInt(b.novos)} novas`;
+  return "";
+}
 async function carregarBuscas() {
   BUSCAS = await api("/api/buscas");
   const el = $("#buscas");
-  if (BUSCAS.length) el.innerHTML = BUSCAS.slice(0, 15).map(b => {
-    const r = rotuloBusca(b);
-    const rodando = ["rodando", "na_fila"].includes(b.situacao);
-    let info = SITUACAO[b.situacao];
-    if (b.situacao === "rodando") info += ` · ${fmtInt(b.parcial)} empresas até agora` + (b.consultas > 1 ? ` · ${b.consultas} consultas` : "");
-    if (["pronta", "cancelada"].includes(b.situacao)) info += ` · ${fmtInt(b.encontrados)} empresas, ${fmtInt(b.novos)} novas`;
-    const acoes = [];
-    if (["pronta", "cancelada"].includes(b.situacao) && b.encontrados) acoes.push(`<a href="#/resultados?busca=${b.id}">Ver resultado</a>`);
-    if (rodando) acoes.push(`<button class="link" onclick="cancelar(${b.id})">parar</button>`);
-    if (["erro", "cancelada"].includes(b.situacao) || (b.situacao === "pronta" && !b.encontrados)) acoes.push(`<button class="link" onclick="repetir(${b.id})">rodar de novo</button>`);
-    if (!rodando && !b.encontrados) acoes.push(`<button class="link" onclick="apagarBusca(${b.id})">tirar da lista</button>`);
-    return `<div class="busca ${b.situacao}">
-      <div><span class="t">${esc(r.termos)}</span> <span class="sub">· ${esc(r.onde)}</span></div>
-      <div class="meta"><span>${info}</span>${acoes.join("")}</div>
+  if (BUSCAS.length) el.innerHTML = BUSCAS.slice(0, 8).map(b => {
+    const r = rotuloBusca(b), rodando = ["rodando", "na_fila"].includes(b.situacao), info = infoBusca(b);
+    return `<div class="busca-it">
+      <div><span class="t">${esc(r.termos)}</span> <span class="sub">em ${esc(r.onde)}</span>${b.agenda ? ` <span class="agenda">· repete ${AGENDAS[b.agenda.dias]?.toLowerCase() || `a cada ${b.agenda.dias} dias`}</span>` : ""}</div>
+      <div class="meta"><span class="sit ${b.situacao}">${SITUACAO[b.situacao]}</span>${info ? `<span>${info}</span>` : ""}${acoesBusca(b).join("")}</div>
       ${b.erro ? `<div class="erro" style="font-size:12.5px;margin-top:4px">${esc(b.erro)}</div>` : ""}
-      ${rodando ? '<div class="barra-prog"><i></i></div>' : ""}
-    </div>`;
+      ${rodando ? '<div class="barra-prog"><i></i></div>' : ""}</div>`;
   }).join("");
-  const rodando = BUSCAS.some(b => ["rodando", "na_fila"].includes(b.situacao));
-  if (rodandoAntes && !rodando) { carregarOpcoes(); if (!$("#telaRes").hidden) carregarLeads(); }
-  rodandoAntes = rodando;
+  // busca que acabou de terminar: aviso e recarrega o que estiver aberto
+  let terminou = false;
+  for (const b of BUSCAS) {
+    const antes = estadoAntes[b.id];
+    if (antes && ["rodando", "na_fila"].includes(antes) && !["rodando", "na_fila"].includes(b.situacao)) {
+      terminou = true;
+      if (b.situacao === "pronta") aviso(`Busca #${b.id} terminou: ${fmtInt(b.encontrados)} empresas, ${fmtInt(b.novos)} novas.`, b.encontrados ? { rotulo: "Ver empresas", fn: () => location.hash = `#/leads?busca=${b.id}` } : null, 9000);
+      else if (b.situacao === "erro") aviso(`Busca #${b.id} deu erro. Veja no histórico.`, null, 9000);
+    }
+    estadoAntes[b.id] = b.situacao;
+  }
+  if (terminou) { carregarOpcoes(); carregarListas(); if (VISTA === "leads") carregarLeads(); if (VISTA === "painel") carregarPainel(); if (VISTA === "funil") carregarFunil(); }
+  const ativa = BUSCAS.find(b => b.situacao === "rodando") || BUSCAS.find(b => b.situacao === "na_fila");
+  $("#ativa").hidden = !ativa; $("#navVivo").hidden = !ativa;
+  if (ativa) $("#ativaTxt").innerHTML = ativa.situacao === "rodando" ? `Buscando <b>${esc(rotuloBusca(ativa).termos)}</b> · ${fmtInt(ativa.parcial)} empresas` : `Busca #${ativa.id} na fila`;
   preencherSelectBuscas();
+  if (VISTA === "historico") desenharHistorico();
+}
+function desenharHistorico() {
+  $("#histBody").innerHTML = BUSCAS.length ? BUSCAS.map(b => {
+    const r = rotuloBusca(b);
+    return `<tr><td class="sub num">${b.id}</td><td><b style="font-weight:550">${esc(r.termos)}</b></td><td class="sub">${esc(r.onde)}${b.profundidade ? ` · profundidade ${b.profundidade}` : ""}${b.emails ? " · com e-mail" : ""}</td>
+      <td><span class="sit ${b.situacao}">${SITUACAO[b.situacao]}</span>${b.situacao === "rodando" ? ` <span class="sub">${fmtInt(b.parcial)} até agora</span>` : ""}${b.erro ? `<div class="erro" style="font-size:12px">${esc(b.erro)}</div>` : ""}</td>
+      <td class="num">${fmtInt(b.encontrados)}</td><td class="num">${fmtInt(b.novos)}</td><td class="sub" title="${esc(b.criada)}">${quando(b.criada)}</td>
+      <td>${agendaHTML(b)}</td>
+      <td><div class="acoes">${acoesBusca(b).join("")}</div></td></tr>`;
+  }).join("") : `<tr><td colspan="9" class="vazio">Nenhuma busca ainda. <a href="#/buscar">Faça a primeira</a>.</td></tr>`;
 }
 async function cancelar(id) { await api(`/api/buscas/${id}/cancelar`, { method: "POST" }); carregarBuscas(); }
 async function apagarBusca(id) { await api(`/api/buscas/${id}`, { method: "DELETE" }); carregarBuscas(); }
-async function repetir(id) { await api(`/api/buscas/${id}/repetir`, { method: "POST" }); carregarBuscas(); }
+async function repetir(id) { await api(`/api/buscas/${id}/repetir`, { method: "POST" }); aviso("A busca vai rodar de novo."); carregarBuscas(); }
 setInterval(carregarBuscas, 4000);
 
-/* ===================== TELA DE RESULTADOS ===================== */
-const F = { municipios: new Set(), categorias: new Set(), status: new Set(), toggles: {}, busca: "" };
+/* ===================== LEADS ===================== */
+const F = { municipios: new Set(), categorias: new Set(), status: new Set(), tags: new Set(), toggles: {}, busca: "" };
 let OPC = { cidades: [], categorias: [], status: [] }, leads = [], ativo = null, centro = null, enquadrou = false;
 let mapa, camadaLeads, marcaCentro, circulo;
+const SEL = new Set();
 
 function iniciarMapa() {
   if (mapa) return;
   mapa = L.map("mapa").setView([-15.78, -47.93], 4);
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(mapa);
+  camadaBase(mapa);
   camadaLeads = L.layerGroup().addTo(mapa);
   mapa.on("click", e => { if (e.originalEvent.target.closest(".leaflet-interactive.lead")) return; marcarCentro(e.latlng.lat, e.latlng.lng); });
+  desenharLegenda();
 }
+function desenharLegenda() { $("#legenda").innerHTML = STATUS.filter(s => s !== "nao_contatar" || F.status.has(s)).map(s => `<span><i class="ponto" style="background:${corStatus(s)}"></i>${NOMES_STATUS[s]}</span>`).join(""); }
 function marcarCentro(lat, lon) {
   centro = { lat, lon };
-  const r = Number($("#fRaioKm").value || 3) * 1000;
+  const r = Number($("#fRaioKm").value || 3) * 1000, cor = getComputedStyle(document.documentElement).getPropertyValue("--acento").trim();
   if (!marcaCentro) {
     marcaCentro = L.marker([lat, lon], { draggable: true }).addTo(mapa);
     marcaCentro.on("dragend", e => { const p = e.target.getLatLng(); marcarCentro(p.lat, p.lng); });
-    circulo = L.circle([lat, lon], { radius: r, color: "#0b6e4f", weight: 1.5, fillOpacity: .05, interactive: false }).addTo(mapa);
+    circulo = L.circle([lat, lon], { radius: r, color: cor, weight: 1.5, fillOpacity: .06, interactive: false }).addTo(mapa);
   } else { marcaCentro.setLatLng([lat, lon]); circulo.setLatLng([lat, lon]); }
-  $("#dicaPonto").innerHTML = `Ponto marcado. <button type="button" class="link" onclick="tirarCentro()">tirar ponto</button>`;
+  $("#dicaPonto").innerHTML = `Ponto marcado no mapa. <button type="button" class="link" onclick="tirarCentro()">Tirar ponto</button>`;
+  $("#pontoInfo").hidden = false; $("#pontoInfo").innerHTML = `Distâncias a partir do ponto · <button class="link" onclick="tirarCentro()">tirar</button>`;
   if (!$("#fOrdem").value) $("#fOrdem").value = "distancia";
   carregarLeads();
 }
 function tirarCentro() {
   centro = null; if (marcaCentro) { mapa.removeLayer(marcaCentro); mapa.removeLayer(circulo); marcaCentro = circulo = null; }
   $("#dicaPonto").textContent = "Clique no mapa para marcar um ponto e ver a distância de cada empresa.";
+  $("#pontoInfo").hidden = true;
   $("#fRaio").checked = false; if ($("#fOrdem").value === "distancia") $("#fOrdem").value = ""; carregarLeads();
 }
 $("#fRaioKm").addEventListener("input", () => { if (circulo) circulo.setRadius(Number($("#fRaioKm").value || 3) * 1000); if ($("#fRaio").checked) recarregar(); });
 
-async function abrirResultados() {
+async function abrirLeads() {
   iniciarMapa();
   setTimeout(() => mapa.invalidateSize(), 50);
   await carregarOpcoes();
   $("#fBusca").value = F.busca || "";
   carregarLeads();
 }
-
 function marcasHTML(lista, conjunto, chave, rotulo) {
   if (!lista.length) return '<span class="sub">Nada na base ainda.</span>';
   return lista.map(o => `<label data-nome="${esc(rotulo(o).toLowerCase())}"><input type="checkbox" data-grupo="${chave}" value="${esc(o.id ?? o.nome)}" ${conjunto.has(String(o.id ?? o.nome)) ? "checked" : ""}> ${esc(rotulo(o))}<span class="n">${fmtInt(o.n)}</span></label>`).join("");
@@ -635,31 +1296,34 @@ async function carregarOpcoes() {
   OPC = await api("/api/opcoes");
   $("#lCidades").innerHTML = marcasHTML(OPC.cidades, F.municipios, "municipios", o => `${o.nome} - ${o.uf}`);
   $("#lCategorias").innerHTML = marcasHTML(OPC.categorias, F.categorias, "categorias", o => o.nome);
+  $("#lTags").innerHTML = marcasHTML(OPC.tags, F.tags, "tags", o => o.nome);
+  $("#grupoTags").hidden = !OPC.tags.length;
+  $("#dlTags").innerHTML = OPC.tags.map(t => `<option value="${esc(t.nome)}">`).join("");
   $("[data-procura=lCidades]").hidden = OPC.cidades.length < 8;
   $("[data-procura=lCategorias]").hidden = OPC.categorias.length < 8;
-  $("#tStatus").innerHTML = OPC.status.map(s => `<button type="button" data-status="${s.id}" aria-pressed="${F.status.has(s.id)}">${NOMES_STATUS[s.id]}<span class="n">${fmtInt(s.n)}</span></button>`).join("");
-  const total = OPC.cidades.reduce((a, c) => a + c.n, 0);
+  $("#tStatus").innerHTML = OPC.status.map(s => `<button type="button" data-status="${s.id}" aria-pressed="${F.status.has(s.id)}"><i class="ponto" style="background:${corStatus(s.id)}"></i>${NOMES_STATUS[s.id]}<span class="n">${fmtInt(s.n)}</span></button>`).join("");
+  const total = OPC.status.reduce((a, s) => a + s.n, 0);
   $("#navN").textContent = total ? fmtInt(total) : "";
   atualizarLimpar();
 }
 function preencherSelectBuscas() {
-  const sel = $("#fBusca"), atual = sel.value || F.busca;
-  sel.innerHTML = '<option value="">Todas as buscas</option>' + BUSCAS.filter(b => b.encontrados).map(b => { const r = rotuloBusca(b); return `<option value="${b.id}">#${b.id} ${esc(r.termos)} · ${esc(r.onde)} (${b.encontrados})</option>`; }).join("");
-  sel.value = atual || "";
+  const opts = BUSCAS.filter(b => b.encontrados).map(b => { const r = rotuloBusca(b); return `<option value="${b.id}">#${b.id} ${esc(r.termos)} · ${esc(r.onde)} (${b.encontrados})</option>`; }).join("");
+  for (const [sel, atual] of [[$("#fBusca"), $("#fBusca").value || F.busca], [$("#kBusca"), $("#kBusca").value]]) {
+    sel.innerHTML = '<option value="">Todas as buscas</option>' + opts; sel.value = atual || "";
+  }
 }
 
-// eventos dos filtros
 $("#painelFiltros").addEventListener("change", e => {
   const t = e.target;
   if (t.dataset.grupo) { const s = F[t.dataset.grupo]; t.checked ? s.add(t.value) : s.delete(t.value); atualizarLimpar(); recarregar(); }
 });
 $("#painelFiltros").addEventListener("click", e => {
   const b = e.target.closest("button"); if (!b) return;
-  if (b.dataset.status) { F.status.has(b.dataset.status) ? F.status.delete(b.dataset.status) : F.status.add(b.dataset.status); b.setAttribute("aria-pressed", F.status.has(b.dataset.status)); recarregar(); }
+  if (b.dataset.status) { F.status.has(b.dataset.status) ? F.status.delete(b.dataset.status) : F.status.add(b.dataset.status); b.setAttribute("aria-pressed", F.status.has(b.dataset.status)); desenharLegenda(); recarregar(); }
   else if (b.dataset.k) {
     const ligado = F.toggles[b.dataset.k] === b.dataset.v;
     if (ligado) delete F.toggles[b.dataset.k]; else F.toggles[b.dataset.k] = b.dataset.v;
-    $$("#tContato button").forEach(x => x.setAttribute("aria-pressed", F.toggles[x.dataset.k] === x.dataset.v));
+    $$("#tContato button, #tRetorno button, #tZap button").forEach(x => x.setAttribute("aria-pressed", F.toggles[x.dataset.k] === x.dataset.v));
     recarregar();
   } else if (b.dataset.limpa) { F[b.dataset.limpa].clear(); $$(`[data-grupo=${b.dataset.limpa}]`).forEach(x => x.checked = false); atualizarLimpar(); recarregar(); }
 });
@@ -669,27 +1333,41 @@ $$(".marcas-busca").forEach(inp => inp.addEventListener("input", () => {
 }));
 function atualizarLimpar() { $$("[data-limpa]").forEach(b => b.hidden = !F[b.dataset.limpa].size); }
 ["#fNotaMin", "#fNotaMax", "#fAvalMin", "#fAvalMax", "#fBairro", "#fQ"].forEach(s => $(s).addEventListener("input", () => recarregar()));
+$("#fScore").addEventListener("input", e => { $("#fScoreV").textContent = e.target.value; recarregar(); });
 ["#fOrdem", "#fRaio", "#fBusca"].forEach(s => $(s).addEventListener("change", () => { F.busca = $("#fBusca").value; recarregar(); }));
 $("#limpar").onclick = () => {
-  F.municipios.clear(); F.categorias.clear(); F.status.clear(); F.toggles = {}; F.busca = "";
+  F.municipios.clear(); F.categorias.clear(); F.status.clear(); F.tags.clear(); F.toggles = {}; F.busca = "";
   ["#fNotaMin", "#fNotaMax", "#fAvalMin", "#fAvalMax", "#fBairro", "#fQ"].forEach(s => $(s).value = "");
+  $("#fScore").value = 0; $("#fScoreV").textContent = "0";
   $("#fBusca").value = ""; $("#fRaio").checked = false;
   $$("#painelFiltros input[type=checkbox][data-grupo]").forEach(x => x.checked = false);
   $$("#painelFiltros [aria-pressed]").forEach(x => x.setAttribute("aria-pressed", "false"));
-  if (location.hash.includes("busca=")) history.replaceState(null, "", "#/resultados");
-  atualizarLimpar(); carregarLeads();
+  if (location.hash.includes("busca=") || location.hash.includes("lista=")) { history.replaceState(null, "", "#/leads"); $("#subtitulo").textContent = ""; $$("#navListas a").forEach(a => a.removeAttribute("aria-current")); }
+  atualizarLimpar(); desenharLegenda(); carregarLeads();
 };
 $("#exportar").onclick = () => { location.href = "/api/leads.csv?" + params(); };
-$("#abrirFiltros").onclick = () => $("#painelFiltros").classList.toggle("aberto");
+function alternarFiltros(mostrar) {
+  $("#vLeadsGrade").classList.toggle("sem-filtros", !mostrar); $("#abrirFiltros").setAttribute("aria-pressed", mostrar);
+  if (innerWidth > 900) localStorage.setItem("filtros", mostrar ? "1" : "0");
+  setTimeout(() => mapa && mapa.invalidateSize(), 30);
+}
+$("#abrirFiltros").onclick = () => alternarFiltros($("#vLeadsGrade").classList.contains("sem-filtros"));
+function alternarMapa(mostrar) {
+  $("#mapaWrap").hidden = !mostrar; $("#mostrarMapa").setAttribute("aria-pressed", mostrar); localStorage.setItem("mapa", mostrar ? "1" : "0");
+  if (mostrar) setTimeout(() => mapa && mapa.invalidateSize(), 30);
+}
+$("#mostrarMapa").onclick = () => alternarMapa($("#mapaWrap").hidden);
 
 function params() {
   const p = new URLSearchParams();
   if (F.municipios.size) p.set("municipios", [...F.municipios].join(","));
   if (F.categorias.size) p.set("categorias", [...F.categorias].join(","));
   if (F.status.size) p.set("status", [...F.status].join(","));
+  if (F.tags.size) p.set("tags", [...F.tags].join(","));
   for (const [k, v] of Object.entries(F.toggles)) p.set(k, v);
   const campos = { nota_min: "#fNotaMin", nota_max: "#fNotaMax", aval_min: "#fAvalMin", aval_max: "#fAvalMax", bairro: "#fBairro", q: "#fQ", ordem: "#fOrdem" };
   for (const [k, s] of Object.entries(campos)) if ($(s).value) p.set(k, $(s).value);
+  if (Number($("#fScore").value)) p.set("score_min", $("#fScore").value);
   if (F.busca) p.set("busca", F.busca);
   if (centro) { p.set("lat", centro.lat); p.set("lon", centro.lon); if ($("#fRaio").checked) p.set("raio_km", $("#fRaioKm").value); }
   return p;
@@ -699,105 +1377,486 @@ const recarregar = debounce(() => carregarLeads(), 250);
 
 async function carregarLeads() {
   const j = await api("/api/leads?" + params());
-  leads = j.leads;
-  const b = j.base;
-  $("#base").textContent = b.total ? `${fmtInt(b.total)} empresas · ${fmtInt(b.whats)} com celular · ${fmtInt(b.sem_site)} sem site` : "";
+  leads = guardar(j.leads);
+  baseResumo(j.base);
   const nf = nFiltros();
-  $("#abrirFiltros").textContent = nf ? `Filtros (${nf})` : "Filtros";
+  $("#abrirFiltros span").textContent = nf ? `Filtros (${nf})` : "Filtros";
   $("#limpar").textContent = nf ? `Limpar filtros (${nf})` : "Limpar filtros";
   $("#contagem").innerHTML = `<b>${fmtInt(j.total)}</b> ${j.total === 1 ? "empresa" : "empresas"}${j.total > leads.length ? ` (mostrando ${fmtInt(leads.length)})` : ""}`;
-  desenharTabela(); desenharMapa();
+  if (!location.hash.includes("lista=")) $("#subtitulo").textContent = j.base.total ? `${fmtInt(j.base.total)} empresas na base` : "";
+  const visiveis = new Set(leads.map(l => l.id)); [...SEL].forEach(id => visiveis.has(id) || SEL.delete(id));
+  desenharTabela(); desenharMapa(); atualizarLote();
   const comCoord = leads.filter(l => l.lat != null);
   const chave = `b${F.busca || ""}|${[...F.municipios].join(",")}`;
-  if (enquadrou !== chave && !centro && comCoord.length) {
+  if (enquadrou !== chave && !centro && comCoord.length && !$("#mapaWrap").hidden) {
     enquadrou = chave;
     mapa.fitBounds(L.latLngBounds(comCoord.map(l => [l.lat, l.lon])), { padding: [30, 30], maxZoom: 15 });
   }
 }
+function baseResumo(b) {
+  $("#sbBase").innerHTML = b.total ? `<b>${fmtInt(b.total)}</b> empresas na base<br><b>${fmtInt(b.whats)}</b> com celular · <b>${fmtInt(b.sem_site)}</b> sem site` : "Nenhuma empresa na base ainda.";
+}
 
 function contatos(l) {
-  const it = [];
-  if (l.whatsapp) it.push(`<a class="zap" href="https://wa.me/${l.whatsapp}" target="_blank" rel="noopener" onclick="event.stopPropagation()">WhatsApp ${esc(l.telefone)}</a>`);
-  else if (l.telefone) it.push(`<a href="tel:${esc(soDig(l.telefone))}" onclick="event.stopPropagation()">${esc(l.telefone)}</a>`);
+  const it = [], pare = 'onclick="event.stopPropagation()"';
+  if (l.whatsapp) it.push(`<span><a class="zap" href="https://wa.me/${l.whatsapp}" target="_blank" rel="noopener" ${pare}>${esc(l.telefone)}</a>${l.whatsapp_ok === 1 ? '<span class="zap-ok" title="Conferido no WhatsApp">✓ conferido</span>' : ""}</span>`);
+  else if (l.telefone) it.push(`<span><a href="tel:${esc(soDig(l.telefone))}" ${pare}>${esc(l.telefone)}</a>${l.whatsapp_ok === 0 ? ' <span class="zap-nao">sem WhatsApp</span>' : ""}</span>`);
   if (l.emails) it.push(`<span>${esc(l.emails.split(", ")[0])}</span>`);
-  if (l.instagram) it.push(`<a href="https://instagram.com/${esc(l.instagram.slice(1))}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${esc(l.instagram)}</a>`);
-  else if (l.site) it.push(`<a href="${esc(l.site)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${esc(l.site.replace(/^https?:\/\/(www\.)?/, "").slice(0, 34))}</a>`);
+  if (l.instagram) it.push(`<a href="https://instagram.com/${esc(l.instagram.slice(1))}" target="_blank" rel="noopener" ${pare}>${esc(l.instagram)}</a>`);
+  else if (l.site) it.push(`<a href="${esc(l.site)}" target="_blank" rel="noopener" ${pare}>${esc(l.site.replace(/^https?:\/\/(www\.)?/, "").slice(0, 34))}</a>`);
   if (!l.site) it.push('<span class="sem">sem site</span>');
   return `<div class="contatos">${it.join("")}</div>`;
 }
+const tagsLista = l => (l.tags || "").split(",").filter(Boolean);
+const tagsHTML = l => { const t = tagsLista(l); return t.length ? `<div class="tags">${t.map(x => `<span class="tag">${esc(x)}</span>`).join("")}</div>` : ""; };
 function selStatus(l, largo) {
-  return `<select ${largo ? 'style="width:100%"' : ""} onclick="event.stopPropagation()" onchange="mudarStatus('${esc(l.id)}', this.value)" aria-label="Status">${Object.entries(NOMES_STATUS).map(([k, v]) => `<option value="${k}" ${k === l.status ? "selected" : ""}>${v}</option>`).join("")}</select>`;
+  return `<span class="seletor-status" onclick="event.stopPropagation()"><i class="ponto" style="background:${corStatus(l.status)}"></i><select ${largo ? 'style="width:100%"' : ""} onchange="mudarStatus('${esc(l.id)}', this.value)" aria-label="Status">${STATUS.map(k => `<option value="${k}" ${k === l.status ? "selected" : ""}>${NOMES_STATUS[k]}</option>`).join("")}</select></span>`;
 }
 function desenharTabela() {
   const tb = $("#tbody");
   if (!leads.length) {
-    tb.innerHTML = `<tr><td colspan="6" class="vazio">${nFiltros() || $("#fQ").value ? "Nenhuma empresa com esses filtros. Afrouxe algum filtro ou clique em Limpar filtros." : 'Sua base está vazia. <a href="#/buscar">Faça uma busca</a> para trazer empresas.'}</td></tr>`;
+    tb.innerHTML = `<tr><td colspan="9" class="vazio">${nFiltros() || $("#fQ").value ? "Nenhuma empresa com esses filtros. Afrouxe algum filtro ou clique em Limpar filtros." : 'Sua base está vazia. <a href="#/buscar">Faça uma busca</a> para trazer empresas.'}</td></tr>`;
     return;
   }
-  tb.innerHTML = leads.map(l => `<tr class="lead ${ativo === l.id ? "ativo" : ""}" onclick="abrir('${esc(l.id)}')">
-    <td><div class="nome">${esc(l.nome)}</div><div class="sub">${esc(l.categoria || "")}</div></td>
-    <td class="num" style="white-space:nowrap">${l.nota ? fmtNum(l.nota) : "—"}<div class="sub">${fmtInt(l.avaliacoes)} aval.</div></td>
+  tb.innerHTML = leads.map(l => `<tr class="lead ${ativo === l.id ? "ativo" : ""} ${SEL.has(l.id) ? "sel" : ""}" data-id="${esc(l.id)}">
+    <td class="ck"><input type="checkbox" data-sel="${esc(l.id)}" ${SEL.has(l.id) ? "checked" : ""} aria-label="Selecionar ${esc(l.nome)}"></td>
+    <td><div class="nome-l">${esc(l.nome)}</div><div class="sub">${esc(l.categoria || "")}</div>${tagsHTML(l)}</td>
+    <td>${scoreHTML(l.score)}</td>
+    <td class="num" style="white-space:nowrap">${l.nota ? "★ " + fmtNum(l.nota) : "–"}<div class="sub">${fmtInt(l.avaliacoes)} aval.</div></td>
     <td>${contatos(l)}</td>
     <td class="col-local"><div>${esc(l.bairro || "")}</div><div class="sub">${esc(l.cidade || "")}${l.uf ? " - " + l.uf : ""}</div></td>
     <td class="num col-dist" style="white-space:nowrap">${l.distancia != null ? fmtNum(l.distancia) + " km" : ""}</td>
+    <td class="col-ret">${retornoTag(l.retorno)}</td>
     <td>${selStatus(l)}</td></tr>`).join("");
+  $("#selTodos").checked = leads.length && leads.every(l => SEL.has(l.id));
 }
+$("#tbody").addEventListener("click", e => {
+  const ck = e.target.closest("[data-sel]");
+  if (ck) { e.stopPropagation(); ck.checked ? SEL.add(ck.dataset.sel) : SEL.delete(ck.dataset.sel); ck.closest("tr").classList.toggle("sel", ck.checked); atualizarLote(); return; }
+  if (e.target.closest("td.ck")) return;
+  const tr = e.target.closest("tr.lead"); if (tr) abrir(tr.dataset.id);
+});
+$("#selTodos").onchange = e => { leads.forEach(l => e.target.checked ? SEL.add(l.id) : SEL.delete(l.id)); desenharTabela(); atualizarLote(); };
+function atualizarLote() {
+  $("#lote").hidden = !SEL.size; $("#loteN").textContent = fmtInt(SEL.size);
+  $("#selTodos").checked = leads.length && leads.every(l => SEL.has(l.id));
+}
+$("#loteStatus").innerHTML += STATUS.map(s => `<option value="${s}">${NOMES_STATUS[s]}</option>`).join("");
+$("#loteStatus").onchange = async e => {
+  const status = e.target.value; if (!status) return;
+  const ids = [...SEL];
+  await api("/api/leads/lote", json("POST", { ids, status }));
+  aviso(`${fmtInt(ids.length)} ${ids.length === 1 ? "empresa mudou" : "empresas mudaram"} para ${NOMES_STATUS[status]}.`);
+  e.target.value = ""; SEL.clear(); carregarLeads(); carregarOpcoes();
+};
+$("#loteTagForm").onsubmit = async e => {
+  e.preventDefault(); const tag = $("#loteTag").value.trim(); if (!tag) return;
+  const ids = [...SEL];
+  await api("/api/leads/lote", json("POST", { ids, tag }));
+  aviso(`Tag "${esc(tag)}" adicionada em ${fmtInt(ids.length)} ${ids.length === 1 ? "empresa" : "empresas"}.`);
+  $("#loteTag").value = ""; carregarLeads(); carregarOpcoes();
+};
+$("#loteConferir").onclick = async () => {
+  const ids = [...SEL].filter(id => CACHE.get(id)?.telefone);
+  if (!ids.length) return aviso("Nenhuma das selecionadas tem telefone.");
+  if (ids.length > 50) return aviso(`Selecione até 50 empresas por vez (hoje são ${fmtInt(ids.length)} com telefone). Conferir muitos números de uma vez pode bloquear o seu.`, null, 8000);
+  const b = $("#loteConferir"), orig = b.innerHTML; b.disabled = true; b.textContent = "Conferindo…";
+  try { const r = await api("/api/leads/conferir-whatsapp", json("POST", { ids })); aviso(`${fmtInt(r.com_whatsapp)} de ${fmtInt(r.conferidos)} números têm WhatsApp.`); carregarLeads(); }
+  catch (err) { aviso(esc(err.message), null, 8000); }
+  finally { b.disabled = false; b.innerHTML = orig; }
+};
+$("#loteLimpar").onclick = () => { SEL.clear(); desenharTabela(); atualizarLote(); };
+$("#loteCsv").onclick = () => {
+  const cols = ["nome", "categoria", "score", "telefone", "whatsapp", "emails", "site", "instagram", "nota", "avaliacoes", "endereco", "bairro", "cidade", "uf", "status", "retorno", "observacao", "link"];
+  const cel = v => { v = v == null ? "" : typeof v === "number" && !Number.isInteger(v) ? String(v).replace(".", ",") : String(v); return /[";\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v; };
+  const linhas = [cols.join(";"), ...[...SEL].map(id => CACHE.get(id)).filter(Boolean).map(l => cols.map(c => cel(l[c])).join(";"))];
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob(["﻿" + linhas.join("\n")], { type: "text/csv;charset=utf-8" }));
+  a.download = `leads-selecionados-${hojeISO()}.csv`; a.click(); URL.revokeObjectURL(a.href);
+};
+
 function desenharMapa() {
+  if (!camadaLeads) return;
   camadaLeads.clearLayers();
+  const borda = getComputedStyle(document.documentElement).getPropertyValue("--sup").trim();
   leads.forEach(l => {
     if (l.lat == null) return;
-    L.circleMarker([l.lat, l.lon], { radius: 5, color: "#fff", weight: 1, fillColor: COR_STATUS[l.status], fillOpacity: .95, className: "lead" })
-      .bindTooltip(`${esc(l.nome)}${l.nota ? " · " + fmtNum(l.nota) : ""}`).on("click", () => abrir(l.id)).addTo(camadaLeads);
+    L.circleMarker([l.lat, l.lon], { radius: ativo === l.id ? 8 : 5.5, color: borda, weight: 1.5, fillColor: corStatus(l.status), fillOpacity: 1, className: "lead" })
+      .bindTooltip(`<b>${esc(l.nome)}</b><br>${NOMES_STATUS[l.status]} · score ${l.score}${l.nota ? " · ★ " + fmtNum(l.nota) : ""}`, { direction: "top" }).on("click", () => abrir(l.id)).addTo(camadaLeads);
   });
 }
-async function mudarStatus(id, status) {
-  await api(`/api/leads/${encodeURIComponent(id)}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) });
-  const l = leads.find(x => x.id === id); if (l) l.status = status;
-  desenharMapa(); desenharTabela(); if (ativo === id) abrir(id);
+async function mudarStatus(id, status, silencioso) {
+  const l = CACHE.get(id), antes = l && l.status;
+  const r = await api(`/api/leads/${encodeURIComponent(id)}`, json("PATCH", { status }));
+  guardar([r]);
+  if (!silencioso && antes && antes !== status) aviso(`${esc(r.nome)} agora está em ${NOMES_STATUS[status]}.`, { rotulo: "Desfazer", fn: () => mudarStatus(id, antes, true) });
+  depoisDeMudar(id);
+}
+function depoisDeMudar(id) {
+  if (VISTA === "leads") { desenharTabela(); desenharMapa(); }
+  if (VISTA === "funil") desenharFunil();
+  if (VISTA === "painel") carregarPainel();
+  if (ativo === id) desenharDetalhe(CACHE.get(id));
+  carregarOpcoes(); if (LISTAS.length) carregarListas();
 }
 
-// detalhe
-function abrir(id) {
-  const l = leads.find(x => x.id === id); if (!l) return;
-  ativo = id; desenharTabela();
+/* ===================== FUNIL ===================== */
+let FUNIL = [];
+async function carregarFunil() {
+  const p = new URLSearchParams({ status: STATUS.join(","), limite: 3000, ordem: $("#kOrdem").value });
+  if ($("#kBusca").value) p.set("busca", $("#kBusca").value);
+  if ($("#kQ").value) p.set("q", $("#kQ").value);
+  const j = await api("/api/leads?" + p);
+  FUNIL = guardar(j.leads); desenharFunil();
+}
+["#kBusca", "#kOrdem"].forEach(s => $(s).addEventListener("change", carregarFunil));
+$("#kQ").addEventListener("input", debounce(carregarFunil, 250));
+function desenharFunil() {
+  const LIM = 120;
+  $("#quadro").innerHTML = STATUS.map(s => {
+    const da = FUNIL.filter(l => l.status === s);
+    return `<div class="coluna" data-status="${s}"><div class="coluna-topo"><i class="ponto" style="background:${corStatus(s)}"></i>${NOMES_STATUS[s]}<span class="n">${fmtInt(da.length)}</span></div>
+      <div class="cartoes">${da.slice(0, LIM).map(l => `<div class="cartao" draggable="true" data-id="${esc(l.id)}">
+        <div class="topo"><span class="t">${esc(l.nome)}</span>${scoreHTML(l.score)}</div>
+        <div class="sub">${esc([l.categoria, l.cidade].filter(Boolean).join(" em "))}</div>
+        <div class="rodape">${l.whatsapp ? `<span class="zap-ico" title="Tem celular">${ic("zap")}</span>` : ""}${!l.site ? "<span>sem site</span>" : ""}${l.nota ? `<span>★ ${fmtNum(l.nota)}</span>` : ""}${l.retorno ? retornoTag(l.retorno) : ""}</div></div>`).join("")}
+      ${da.length > LIM ? `<div class="mais">Mostrando ${LIM} de ${fmtInt(da.length)}. Use o filtro para achar os outros.</div>` : ""}
+      ${!da.length ? `<div class="mais">Arraste um cartão para cá.</div>` : ""}</div></div>`;
+  }).join("");
+}
+let arrastado = null;
+$("#quadro").addEventListener("dragstart", e => { const c = e.target.closest(".cartao"); if (!c) return; arrastado = c.dataset.id; c.classList.add("arrastando"); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", arrastado); });
+$("#quadro").addEventListener("dragend", e => { e.target.closest(".cartao")?.classList.remove("arrastando"); $$(".coluna.alvo").forEach(c => c.classList.remove("alvo")); });
+$("#quadro").addEventListener("dragover", e => { const col = e.target.closest(".coluna"); if (!col || !arrastado) return; e.preventDefault(); $$(".coluna.alvo").forEach(c => c !== col && c.classList.remove("alvo")); col.classList.add("alvo"); });
+$("#quadro").addEventListener("drop", e => {
+  const col = e.target.closest(".coluna"); if (!col || !arrastado) return; e.preventDefault();
+  const id = arrastado; arrastado = null; col.classList.remove("alvo");
+  const l = CACHE.get(id); if (l && l.status !== col.dataset.status) { const antes = l.status; l.status = col.dataset.status; desenharFunil(); mudarStatus(id, col.dataset.status).catch(() => { l.status = antes; desenharFunil(); aviso("Não deu para mudar o status. Tente de novo."); }); }
+});
+$("#quadro").addEventListener("click", e => { const c = e.target.closest(".cartao"); if (c) abrir(c.dataset.id); });
+
+/* ===================== DETALHE ===================== */
+async function abrir(id, focarMensagem) {
+  let l = CACHE.get(id);
+  if (!l) l = guardar([await api(`/api/leads/${encodeURIComponent(id)}`)])[0];
+  ativo = id;
+  if (VISTA === "leads") { desenharTabela(); desenharMapa(); if (l.lat != null && !$("#mapaWrap").hidden) mapa.panTo([l.lat, l.lon]); }
+  desenharDetalhe(l);
+  const d = $("#detalhe"); d.classList.add("aberto"); d.setAttribute("aria-hidden", "false");
+  if (focarMensagem) setTimeout(() => $("#msgTexto")?.focus(), 220);
+  carregarAtividades(id);
+}
+function anel(score) {
+  const r = 27, c = 2 * Math.PI * r;
+  return `<div class="anel"><svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="${r}" fill="none" stroke="var(--sup-3)" stroke-width="6"/><circle cx="32" cy="32" r="${r}" fill="none" stroke="var(--acento)" stroke-width="6" stroke-linecap="round" stroke-dasharray="${c * score / 100} ${c}"/></svg><b>${score}</b></div>`;
+}
+function desenharDetalhe(l) {
   let horario = "";
   try { const h = JSON.parse(l.horario || "{}"); const dias = ["segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado", "domingo"]; horario = dias.filter(d => h[d]).map(d => `${d.split("-")[0]}: ${h[d].join(", ")}`).join("<br>"); } catch {}
-  const d = $("#detalhe");
-  d.innerHTML = `<button class="fechar" onclick="fechar()" aria-label="Fechar">×</button>
-    <h3>${esc(l.nome)}</h3><div class="sub">${esc(l.categorias || l.categoria || "")}</div>
-    <dl>
-      <dt>Nota</dt><dd>${l.nota ? fmtNum(l.nota) + " (" + fmtInt(l.avaliacoes) + " avaliações)" : "sem avaliações"}</dd>
-      <dt>Telefone</dt><dd>${esc(l.telefone || "—")}${l.whatsapp ? ` · <a class="zap" href="https://wa.me/${l.whatsapp}" target="_blank" rel="noopener">abrir WhatsApp</a>` : ""}</dd>
-      <dt>E-mail</dt><dd>${esc(l.emails || "—")}</dd>
+  const modelos = lerModelos(), idM = localStorage.getItem("modeloAtual") || modelos[0]?.id;
+  const m = modelos.find(x => x.id === idM) || modelos[0];
+  const textoAberto = $("#msgTexto") && $("#detalhe").dataset.id === l.id ? $("#msgTexto").value : null;
+  $("#detalhe").dataset.id = l.id;
+  $("#detalhe").innerHTML = `
+    <div class="det-topo">
+      <button class="fechar" onclick="fechar()" aria-label="Fechar">${ic("x")}</button>
+      <h3>${esc(l.nome)}</h3><div class="sub">${esc(l.categorias || l.categoria || "")}</div>
+      <div class="det-acoes">
+        ${l.whatsapp ? `<a class="btn btn-sm btn-zap" href="https://wa.me/${l.whatsapp}" target="_blank" rel="noopener" onclick="registrarZap('${esc(l.id)}', null)">${ic("zap")}WhatsApp</a>` : ""}
+        ${l.telefone ? `<a class="btn btn-sm" href="tel:${esc(soDig(l.telefone))}">${ic("fone")}Ligar</a>` : ""}
+        ${l.link ? `<a class="btn btn-sm" href="${esc(l.link)}" target="_blank" rel="noopener">${ic("pin")}Maps</a>` : ""}
+        ${l.site ? `<a class="btn btn-sm" href="${esc(l.site)}" target="_blank" rel="noopener">${ic("site")}Site</a>` : ""}
+      </div>
+    </div>
+    <div class="det-sec"><div class="det-score">${anel(l.score || 0)}<ul class="motivos">${CONFIG.pesos.filter(c => c.peso).map(c => { const s = TESTES[c.chave]?.(l); return `<li class="${s ? "sim" : ""}">${ic(s ? "ok" : "menos")}${esc(c.texto)}<span class="p">${s ? "+" + c.peso : "0"}</span></li>`; }).join("")}</ul></div></div>
+    <div class="det-sec"><h4>Tags</h4><div class="tags-ed">${tagsLista(l).map(t => `<span class="tag">${esc(t)}<button type="button" aria-label="Tirar ${esc(t)}" onclick="tirarTag('${esc(l.id)}', '${esc(t)}')">×</button></span>`).join("")}<form onsubmit="event.preventDefault();addTag('${esc(l.id)}', this.t.value)" style="flex:1;display:flex"><input name="t" type="text" list="dlTags" placeholder="Adicionar tag e Enter"></form></div></div>
+    <div class="det-sec">
+      <div class="duas">
+        <div><label>Status</label>${selStatus(l, true)}</div>
+        <div><label for="retorno">Retorno</label><input type="date" id="retorno" value="${esc(l.retorno || "")}" onchange="marcarRetorno('${esc(l.id)}', this.value)"></div>
+      </div>
+      <div class="atalhos-data"><span class="sub" style="margin-right:2px">Retornar:</span>${[["Hoje", 0], ["Amanhã", 1], ["Em 3 dias", 3], ["Em 1 semana", 7]].map(([t, d]) => `<button type="button" onclick="marcarRetorno('${esc(l.id)}', '${hojeISO(d)}')">${t}</button>`).join("")}${l.retorno ? `<button type="button" onclick="marcarRetorno('${esc(l.id)}', '')">Tirar</button>` : ""}</div>
+    </div>
+    ${l.whatsapp || (CONFIG.zapvu.ativo && l.telefone && l.whatsapp_ok !== 0) ? `<div class="det-sec">
+      <h4>Mensagem no WhatsApp <button class="link" style="font-size:12.5px" onclick="abrirModelos()">Editar modelos</button></h4>
+      <select id="msgModelo" style="margin-bottom:8px" onchange="trocarModelo('${esc(l.id)}', this.value)">${modelos.map(x => `<option value="${esc(x.id)}" ${x.id === m?.id ? "selected" : ""}>${esc(x.nome)}</option>`).join("")}</select>
+      <textarea id="msgTexto" rows="4">${esc(textoAberto ?? (m ? preencher(m.texto, l) : ""))}</textarea>
+      ${CONFIG.zapvu.ativo ? `<div class="duas" style="margin-top:8px"><button class="btn btn-zap" id="btnEnviarZapvu" onclick="enviarZapvu('${esc(l.id)}')">${ic("enviar")}Enviar pelo Zapvu</button><button class="btn" ${l.whatsapp ? "" : "disabled"} onclick="enviarZap('${esc(l.id)}')">${ic("zap")}Abrir no WhatsApp</button></div>
+        <p class="dica">Sai pelo número da sua instância do Zapvu para ${esc(l.telefone)}.${l.whatsapp_ok == null ? ` <button class="link" onclick="conferirUm('${esc(l.id)}')">Conferir se tem WhatsApp</button>` : l.whatsapp_ok ? " WhatsApp conferido." : ""}</p>`
+      : `<button class="btn btn-zap" style="margin-top:8px;width:100%" onclick="enviarZap('${esc(l.id)}')">${ic("zap")}Abrir no WhatsApp com esta mensagem</button>`}
+    </div>` : ""}
+    <div class="det-sec"><dl>
+      <dt>Nota</dt><dd>${l.nota ? "★ " + fmtNum(l.nota) + " (" + fmtInt(l.avaliacoes) + " avaliações)" : "sem avaliações"}</dd>
+      <dt>Telefone</dt><dd>${esc(l.telefone || "–")}</dd>
+      <dt>E-mail</dt><dd>${esc(l.emails || "–")}</dd>
       <dt>Site</dt><dd>${l.site ? `<a href="${esc(l.site)}" target="_blank" rel="noopener">${esc(l.site)}</a>` : '<span class="sem">não tem</span>'}</dd>
-      <dt>Endereço</dt><dd>${esc(l.endereco || "—")}</dd>
+      ${l.instagram ? `<dt>Instagram</dt><dd><a href="https://instagram.com/${esc(l.instagram.slice(1))}" target="_blank" rel="noopener">${esc(l.instagram)}</a></dd>` : ""}
+      <dt>Endereço</dt><dd>${esc(l.endereco || "–")}</dd>
       ${l.distancia != null ? `<dt>Distância</dt><dd>${fmtNum(l.distancia)} km do ponto</dd>` : ""}
       <dt>Perfil</dt><dd>${l.reivindicado ? "o dono gerencia o perfil" : "perfil sem dono (não reivindicado)"}</dd>
       ${l.termo ? `<dt>Achado por</dt><dd>${esc(l.termo)}</dd>` : ""}
       ${horario ? `<dt>Horário</dt><dd>${horario}</dd>` : ""}
       ${l.descricao ? `<dt>Descrição</dt><dd>${esc(l.descricao)}</dd>` : ""}
-    </dl>
-    <p><a href="${esc(l.link)}" target="_blank" rel="noopener">Abrir no Google Maps</a></p>
-    <label>Status</label>${selStatus(l, true)}
-    <label for="obs" style="margin-top:12px">Anotações</label>
-    <textarea id="obs" rows="5" placeholder="Ex.: falei com a Ana, ligar de volta na terça">${esc(l.observacao || "")}</textarea>
-    <button class="btn" style="margin-top:8px" onclick="salvarObs('${esc(l.id)}')">Salvar anotação</button><span class="salvo" id="salvo"></span>`;
-  d.classList.add("aberto"); d.setAttribute("aria-hidden", "false");
-  if (l.lat != null) mapa.panTo([l.lat, l.lon]);
+    </dl></div>
+    <div class="det-sec">
+      <h4>Anotações <span class="salvo" id="salvo"></span></h4>
+      <textarea id="obs" rows="3" placeholder="Ex.: falei com a Ana, ligar de volta na terça" onblur="salvarObs('${esc(l.id)}')">${esc(l.observacao || "")}</textarea>
+      <p class="dica">Salva sozinho quando você sai do campo.</p>
+    </div>
+    <div class="det-sec" style="border-bottom:0">
+      <h4>Histórico do contato</h4>
+      <form class="registrar" onsubmit="event.preventDefault();registrarAtiv('${esc(l.id)}')">
+        <select id="atTipo" aria-label="Tipo"><option value="nota">Anotação</option><option value="ligacao">Ligação</option><option value="whatsapp">WhatsApp</option><option value="email">E-mail</option><option value="visita">Visita</option></select>
+        <input id="atTexto" type="text" placeholder="O que aconteceu?">
+        <button class="btn btn-sm" type="submit">Registrar</button>
+      </form>
+      <ul class="tempo" id="tempo"></ul>
+    </div>`;
 }
-function fechar() { if (!$("#detalhe").classList.contains("aberto")) return; ativo = null; $("#detalhe").classList.remove("aberto"); $("#detalhe").setAttribute("aria-hidden", "true"); desenharTabela(); }
-document.addEventListener("keydown", e => { if (e.key === "Escape") fechar(); });
+async function carregarAtividades(id) {
+  const lista = await api(`/api/leads/${encodeURIComponent(id)}/atividades`);
+  if ($("#detalhe").dataset.id !== id) return;
+  const l = CACHE.get(id);
+  const itens = lista.map(a => `<li><span class="bola ${a.tipo}"></span><div>${esc(rotuloAtiv(a))}<div class="quando">${quando(a.criado)}</div></div></li>`);
+  if (l?.criado) itens.push(`<li><span class="bola"></span><div>Entrou na base${l.termo ? ` pela busca "${esc(l.termo)}"` : ""}<div class="quando">${quando(l.criado)}</div></div></li>`);
+  $("#tempo").innerHTML = itens.join("");
+}
+async function registrarAtiv(id) {
+  const texto = $("#atTexto").value.trim(), tipo = $("#atTipo").value;
+  if (!texto && tipo === "nota") return $("#atTexto").focus();
+  await api(`/api/leads/${encodeURIComponent(id)}/atividades`, json("POST", { tipo, texto }));
+  $("#atTexto").value = ""; carregarAtividades(id);
+}
+async function marcarRetorno(id, data) {
+  const r = await api(`/api/leads/${encodeURIComponent(id)}`, json("PATCH", { retorno: data }));
+  guardar([r]); aviso(data ? `Retorno marcado para ${fmtData(data)}.` : "Retorno tirado.");
+  depoisDeMudar(id); carregarAtividades(id);
+}
+function fechar() { const d = $("#detalhe"); if (!d.classList.contains("aberto")) return; ativo = null; d.classList.remove("aberto"); d.setAttribute("aria-hidden", "true"); if (VISTA === "leads") { desenharTabela(); desenharMapa(); } }
 async function salvarObs(id) {
-  const observacao = $("#obs").value;
-  try { await api(`/api/leads/${encodeURIComponent(id)}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ observacao }) }); $("#salvo").textContent = "Salvo"; }
+  const el = $("#obs"); if (!el) return;
+  const observacao = el.value, l = CACHE.get(id);
+  if (l && (l.observacao || "") === observacao) return;
+  try { await api(`/api/leads/${encodeURIComponent(id)}`, json("PATCH", { observacao })); $("#salvo").textContent = "Salvo"; if (l) l.observacao = observacao; }
   catch { $("#salvo").textContent = "Não salvou. Tente de novo."; }
-  const l = leads.find(x => x.id === id); if (l) l.observacao = observacao;
 }
 
+async function salvarTags(id, tags) {
+  const r = await api(`/api/leads/${encodeURIComponent(id)}`, json("PATCH", { tags }));
+  guardar([r]); depoisDeMudar(id); carregarAtividades(id);
+}
+function addTag(id, t) { t = (t || "").trim().toLowerCase(); if (!t) return; const l = CACHE.get(id); salvarTags(id, [...tagsLista(l), t]); }
+function tirarTag(id, t) { const l = CACHE.get(id); salvarTags(id, tagsLista(l).filter(x => x !== t)); }
+async function enviarZapvu(id) {
+  const texto = $("#msgTexto").value.trim(); if (!texto) return $("#msgTexto").focus();
+  const b = $("#btnEnviarZapvu"), orig = b.innerHTML; b.disabled = true; b.textContent = "Enviando…";
+  try {
+    const r = await api(`/api/leads/${encodeURIComponent(id)}/enviar`, json("POST", { texto, modelo: $("#msgModelo").selectedOptions[0]?.textContent }));
+    guardar([r.lead]); aviso(`Mensagem na fila do Zapvu para ${esc(r.lead.nome)}.`); depoisDeMudar(id); carregarAtividades(id);
+  } catch (err) { aviso(esc(err.message), null, 9000); b.disabled = false; b.innerHTML = orig; }
+}
+async function conferirUm(id) {
+  try { const r = await api("/api/leads/conferir-whatsapp", json("POST", { ids: [id] })); guardar([await api(`/api/leads/${encodeURIComponent(id)}`)]); aviso(r.com_whatsapp ? "Esse número tem WhatsApp." : "Esse número não tem WhatsApp."); depoisDeMudar(id); carregarAtividades(id); }
+  catch (err) { aviso(esc(err.message), null, 9000); }
+}
+
+/* ===================== LISTAS SALVAS ===================== */
+let LISTAS = [];
+async function carregarListas() {
+  LISTAS = await api("/api/listas");
+  const el = $("#navListas"); el.hidden = !LISTAS.length;
+  const atual = new URLSearchParams(location.hash.split("?")[1] || "").get("lista");
+  el.innerHTML = LISTAS.map(l => `<a href="#/leads?lista=${l.id}" data-lista="${l.id}" ${String(l.id) === atual ? 'aria-current="page"' : ""}><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(l.nome)}</span><span class="cont">${fmtInt(l.n)}</span><button class="x" title="Apagar lista" onclick="event.preventDefault();event.stopPropagation();apagarLista(${l.id})">×</button></a>`).join("");
+}
+async function apagarLista(id) {
+  const l = LISTAS.find(x => x.id === id); if (!confirm(`Apagar a lista "${l?.nome}"? As empresas continuam na base.`)) return;
+  await api(`/api/listas/${id}`, { method: "DELETE" }); carregarListas();
+}
+$("#salvarLista").onclick = () => { if (!nFiltros() && !$("#fQ").value) return aviso("Escolha algum filtro antes de salvar a lista."); $("#nomeLista").value = ""; $("#modalLista").hidden = false; setTimeout(() => $("#nomeLista").focus(), 10); };
+$("#formLista").onsubmit = async e => {
+  e.preventDefault(); const p = params(); p.delete("lat"); p.delete("lon"); p.delete("raio_km");
+  const r = await api("/api/listas", json("POST", { nome: $("#nomeLista").value, params: p.toString() }));
+  $("#modalLista").hidden = true; await carregarListas(); history.replaceState(null, "", `#/leads?lista=${r.id}`); $("#subtitulo").textContent = $("#nomeLista").value;
+  $$("#navListas a").forEach(a => a.dataset.lista === String(r.id) ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current"));
+  aviso("Lista salva no menu.");
+};
+function aplicarParams(qs) {
+  const p = new URLSearchParams(qs);
+  for (const k of ["municipios", "categorias", "status", "tags"]) F[k === "municipios" ? "municipios" : k] = new Set((p.get(k) || "").split(",").filter(Boolean));
+  F.toggles = {};
+  for (const k of ["whats", "site", "insta", "email", "reivindicado", "duplicado", "zap_conferido", "retorno", "mudou"]) if (p.get(k)) F.toggles[k] = p.get(k);
+  F.busca = p.get("busca") || "";
+  const campos = { nota_min: "#fNotaMin", nota_max: "#fNotaMax", aval_min: "#fAvalMin", aval_max: "#fAvalMax", bairro: "#fBairro", q: "#fQ", ordem: "#fOrdem" };
+  for (const [k, sel] of Object.entries(campos)) $(sel).value = p.get(k) || "";
+  $("#fScore").value = p.get("score_min") || 0; $("#fScoreV").textContent = $("#fScore").value;
+  $$("#tContato button, #tRetorno button, #tZap button").forEach(x => x.setAttribute("aria-pressed", F.toggles[x.dataset.k] === x.dataset.v));
+  $$("#tStatus button").forEach(x => x.setAttribute("aria-pressed", F.status.has(x.dataset.status)));
+  $$("#painelFiltros input[type=checkbox][data-grupo]").forEach(x => x.checked = F[x.dataset.grupo].has(x.value));
+  enquadrou = false;
+}
+function irFiltro(toggles) {
+  aplicarParams(new URLSearchParams(toggles).toString());
+  if (toggles.mudou) aviso("Abra a empresa para ver o que mudou no histórico do contato.");
+  if (location.hash.startsWith("#/leads")) { history.replaceState(null, "", "#/leads"); abrirLeads(); } else location.hash = "#/leads";
+}
+function comando(nome) { COMANDOS.find(c => c.id === nome)?.fn(); }
+
+/* ===================== AGENDAS ===================== */
+const AGENDAS = { 0: "Não", 7: "Toda semana", 14: "A cada 15 dias", 30: "Todo mês" };
+function agendaHTML(b) {
+  const d = b.agenda?.dias || 0;
+  return `<span class="agenda"><select onchange="agendar(${b.id}, this.value)" aria-label="Repetir a busca">${Object.entries(AGENDAS).map(([k, v]) => `<option value="${k}" ${Number(k) === d ? "selected" : ""}>${v}</option>`).join("")}${d && !AGENDAS[d] ? `<option selected>A cada ${d} dias</option>` : ""}</select>${b.agenda ? `<div class="sub" style="margin-top:2px">próxima ${new Date(b.agenda.proxima).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}</div>` : ""}</span>`;
+}
+async function agendar(id, dias) {
+  await api(`/api/buscas/${id}/agenda`, json("PUT", { dias: Number(dias) }));
+  aviso(Number(dias) ? `A busca #${id} vai rodar sozinha: ${AGENDAS[dias].toLowerCase()}, às 7h. O Base de Leads precisa estar aberto no computador.` : `A busca #${id} não repete mais.`, null, 8000);
+  carregarBuscas();
+}
+
+/* ===================== CONFIGURAÇÕES ===================== */
+async function abrirConfig() {
+  await carregarConfig();
+  const z = CONFIG.zapvu;
+  $("#zUrl").value = z.url; $("#zInst").value = z.instancia; $("#zChave").value = "";
+  $("#zChave").placeholder = z.chave_fim ? `guardada (termina em ${z.chave_fim.slice(1)})` : "zv_…";
+  $("#zEstado").className = "estado-zap" + (z.ativo ? " ok" : ""); $("#zEstado").textContent = z.ativo ? "Configurado" : "Não configurado";
+  $("#zTirar").hidden = !z.ativo;
+  desenharPesos(CONFIG.pesos);
+}
+function desenharPesos(pesos) {
+  $("#listaPesos").innerHTML = pesos.map(c => `<div class="peso"><span>${esc(c.texto)}</span><input type="range" min="0" max="50" step="5" value="${c.peso}" data-peso="${c.chave}" aria-label="${esc(c.texto)}"><input type="number" min="0" max="100" value="${c.peso}" data-pesonum="${c.chave}" aria-label="Peso de ${esc(c.texto)}"></div>`).join("");
+}
+$("#listaPesos").addEventListener("input", e => {
+  const k = e.target.dataset.peso || e.target.dataset.pesonum; if (!k) return;
+  $(`[data-peso=${k}]`).value = e.target.value; $(`[data-pesonum=${k}]`).value = e.target.value;
+});
+$("#pPadrao").onclick = () => desenharPesos(CONFIG.pesos.map(c => ({ ...c, peso: c.padrao })));
+$("#pSalvar").onclick = async () => {
+  const pesos = Object.fromEntries($$("[data-pesonum]").map(i => [i.dataset.pesonum, Number(i.value) || 0]));
+  try { CONFIG = await api("/api/config", json("PUT", { pesos })); aviso("Pesos salvos. O score de todas as empresas foi recalculado."); }
+  catch (err) { aviso(esc(err.message)); }
+};
+async function salvarZapvu(extra) {
+  const zapvu = { url: $("#zUrl").value, instancia: $("#zInst").value, ...extra };
+  if ($("#zChave").value.trim()) zapvu.chave = $("#zChave").value.trim();
+  CONFIG = await api("/api/config", json("PUT", { zapvu }));
+  await abrirConfig(); $("#loteConferir").hidden = !CONFIG.zapvu.ativo;
+}
+$("#zSalvar").onclick = async () => { try { await salvarZapvu(); aviso(CONFIG.zapvu.ativo ? "Conexão salva. Teste para ver se está tudo certo." : "Salvo. Falta a instância ou a chave."); } catch (err) { aviso(esc(err.message)); } };
+$("#zTirar").onclick = async () => { if (!confirm("Desligar o Zapvu? A chave guardada será apagada.")) return; await salvarZapvu({ chave: "" }); aviso("Zapvu desligado."); };
+$("#zTestar").onclick = async () => {
+  const b = $("#zTestar"); b.disabled = true; b.textContent = "Testando…";
+  try {
+    if ($("#zChave").value.trim() || $("#zInst").value !== CONFIG.zapvu.instancia) await salvarZapvu();
+    const r = await api("/api/zapvu/testar", { method: "POST" });
+    $("#zEstado").className = "estado-zap " + (r.conectado ? "ok" : "erro");
+    $("#zEstado").textContent = r.conectado ? `Conectado: ${r.nome || ""} ${r.telefone ? "(" + r.telefone + ")" : ""}` : `Instância ${r.status || "desconectada"}. Conecte o número no painel do Zapvu.`;
+  } catch (err) { $("#zEstado").className = "estado-zap erro"; $("#zEstado").textContent = err.message; }
+  finally { b.disabled = false; b.textContent = "Testar conexão"; }
+};
+
+/* ===================== MODELOS DE MENSAGEM ===================== */
+const MODELOS_PADRAO = [
+  { id: "m1", nome: "Primeiro contato", texto: "Olá, tudo bem? Encontrei a {nome} no Google Maps aqui em {cidade} e tenho uma ideia rápida para trazer mais clientes pelo Google. Posso te mandar?" },
+  { id: "m2", nome: "Empresa sem site", texto: "Oi! Vi a {nome} no Google e reparei que vocês ainda não têm site. Faço sites simples para {categoria} que aparecem no Google e chamam direto no WhatsApp. Quer ver um exemplo?" },
+  { id: "m3", nome: "Retorno", texto: "Olá! Falei com vocês há alguns dias sobre a {nome}. Conseguiu ver minha mensagem? Se preferir, te explico em 2 minutos por áudio." },
+];
+const lerModelos = () => { try { const m = JSON.parse(localStorage.getItem("modelos")); return Array.isArray(m) && m.length ? m : MODELOS_PADRAO; } catch { return MODELOS_PADRAO; } };
+const preencher = (t, l) => t.replace(/\{(nome|cidade|bairro|categoria|nota)\}/g, (_, k) => k === "nota" ? (l.nota ? fmtNum(l.nota) : "") : k === "categoria" ? (l.categoria || "").toLowerCase() : (l[k] || ""));
+function trocarModelo(id, mid) { localStorage.setItem("modeloAtual", mid); const m = lerModelos().find(x => x.id === mid); if (m) $("#msgTexto").value = preencher(m.texto, CACHE.get(id)); }
+async function registrarZap(id, nomeModelo) {
+  await api(`/api/leads/${encodeURIComponent(id)}/atividades`, json("POST", { tipo: "whatsapp", texto: nomeModelo ? `mensagem "${nomeModelo}"` : null })).catch(() => {});
+  const l = CACHE.get(id);
+  if (l && ["novo", "contatar"].includes(l.status)) await mudarStatus(id, "contatado");
+  else carregarAtividades(id);
+}
+function enviarZap(id) {
+  const l = CACHE.get(id), texto = $("#msgTexto").value.trim();
+  window.open(`https://wa.me/${l.whatsapp}${texto ? "?text=" + encodeURIComponent(texto) : ""}`, "_blank", "noopener");
+  registrarZap(id, $("#msgModelo").selectedOptions[0]?.textContent);
+}
+let rascunho = [];
+function abrirModelos() { rascunho = lerModelos().map(m => ({ ...m })); desenharModelos(); $("#modelos").hidden = false; }
+function desenharModelos() {
+  $("#listaModelos").innerHTML = rascunho.map((m, i) => `<div class="modelo-ed"><div class="linha"><input type="text" value="${esc(m.nome)}" oninput="rascunho[${i}].nome=this.value" aria-label="Nome do modelo"><button class="btn btn-ico" onclick="rascunho.splice(${i},1);desenharModelos()" aria-label="Apagar modelo">${ic("x")}</button></div><textarea rows="3" oninput="rascunho[${i}].texto=this.value" aria-label="Texto do modelo">${esc(m.texto)}</textarea></div>`).join("") || `<p class="sub">Nenhum modelo. Crie um para agilizar suas mensagens.</p>`;
+}
+$("#abrirModelos").onclick = e => { e.preventDefault(); abrirModelos(); };
+$("#novoModelo").onclick = () => { rascunho.push({ id: "m" + Date.now(), nome: "Novo modelo", texto: "Olá! Vi a {nome} no Google…" }); desenharModelos(); };
+$("#salvarModelos").onclick = () => {
+  localStorage.setItem("modelos", JSON.stringify(rascunho.filter(m => m.nome.trim() && m.texto.trim())));
+  $("#modelos").hidden = true; aviso("Modelos salvos.");
+  if (ativo) desenharDetalhe(CACHE.get(ativo)), carregarAtividades(ativo);
+};
+$$("[data-fecha]").forEach(b => b.onclick = () => $("#" + b.dataset.fecha).hidden = true);
+$$(".fundo-modal").forEach(f => f.addEventListener("mousedown", e => { if (e.target === f) f.hidden = true; }));
+
+/* ===================== PALETA DE COMANDOS ===================== */
+const COMANDOS = [
+  { t: "Ir para o painel", ic: "painel", fn: () => location.hash = "#/painel" },
+  { t: "Nova busca", ic: "radar", fn: () => location.hash = "#/buscar" },
+  { t: "Ver leads", ic: "leads", fn: () => location.hash = "#/leads" },
+  { t: "Abrir o funil", ic: "funil", fn: () => location.hash = "#/funil" },
+  { t: "Histórico de buscas", ic: "hist", fn: () => location.hash = "#/historico" },
+  { id: "quentes", t: "Prontas para abordar (score 70+, Novo e Contatar)", ic: "leads", fn: () => irFiltro({ score_min: 70, status: "novo,contatar", ordem: "score" }) },
+  { id: "retornos", t: "Retornos para hoje", ic: "cal", fn: () => irFiltro({ retorno: "pendente", ordem: "retorno" }) },
+  { t: "Telefones repetidos (possíveis duplicados)", ic: "leads", fn: () => irFiltro({ duplicado: "sim", ordem: "nome" }) },
+  { t: "Configurações (Zapvu e score)", ic: "config", fn: () => location.hash = "#/config" },
+  { t: "Modelos de mensagem", ic: "msg", fn: () => abrirModelos() },
+  { t: "Alternar tema claro/escuro", ic: "sol", fn: () => $("#tema").click() },
+  { t: "Baixar CSV dos leads filtrados", ic: "baixar", fn: () => location.href = "/api/leads.csv?" + params() },
+];
+let itensPaleta = [], idxPaleta = 0;
+function abrirPaleta() { $("#paleta").hidden = false; $("#paletaIn").value = ""; filtrarPaleta(); setTimeout(() => $("#paletaIn").focus(), 10); }
+function fecharPaleta() { $("#paleta").hidden = true; }
+const procurarLeads = debounce(async q => {
+  const j = await api(`/api/leads?q=${encodeURIComponent(q)}&limite=8&ordem=score`);
+  if ($("#paletaIn").value.trim() !== q) return;
+  const ls = guardar(j.leads);
+  desenharPaleta([...itensPaleta.filter(i => !i.lead), ...ls.map(l => ({ lead: true, t: l.nome, sub: [l.categoria, l.cidade].filter(Boolean).join(" em "), score: l.score, fn: () => abrir(l.id) }))]);
+}, 180);
+function filtrarPaleta() {
+  const q = $("#paletaIn").value.trim(), n = q.toLowerCase();
+  const cmds = COMANDOS.filter(c => !n || c.t.toLowerCase().includes(n));
+  desenharPaleta(cmds);
+  if (q.length >= 2) procurarLeads(q);
+}
+function desenharPaleta(itens) {
+  itensPaleta = itens; idxPaleta = 0;
+  const cmds = itens.filter(i => !i.lead), ls = itens.filter(i => i.lead);
+  let k = 0;
+  const html = (cmds.length ? `<div class="paleta-grupo">Ações</div>` + cmds.map(c => `<div class="paleta-it" data-i="${k++}">${ic(c.ic)}${esc(c.t)}</div>`).join("") : "")
+    + (ls.length ? `<div class="paleta-grupo">Empresas</div>` + ls.map(c => `<div class="paleta-it" data-i="${k++}">${ic("pin")}<span>${esc(c.t)}</span><span class="sub">${esc(c.sub)}</span>${scoreHTML(c.score)}</div>`).join("") : "");
+  itensPaleta = [...cmds, ...ls];
+  $("#paletaRes").innerHTML = html || `<p class="sub" style="padding:12px">Nada encontrado.</p>`;
+  marcarPaleta();
+}
+function marcarPaleta() { $$("#paletaRes .paleta-it").forEach(e => { const s = Number(e.dataset.i) === idxPaleta; e.setAttribute("aria-selected", s); if (s) e.scrollIntoView({ block: "nearest" }); }); }
+$("#paletaIn").addEventListener("input", filtrarPaleta);
+$("#paletaIn").addEventListener("keydown", e => {
+  if (e.key === "ArrowDown") { e.preventDefault(); idxPaleta = Math.min(idxPaleta + 1, itensPaleta.length - 1); marcarPaleta(); }
+  else if (e.key === "ArrowUp") { e.preventDefault(); idxPaleta = Math.max(idxPaleta - 1, 0); marcarPaleta(); }
+  else if (e.key === "Enter") { e.preventDefault(); const it = itensPaleta[idxPaleta]; if (it) { fecharPaleta(); it.fn(); } }
+});
+$("#paletaRes").addEventListener("click", e => { const it = e.target.closest(".paleta-it"); if (it) { fecharPaleta(); itensPaleta[it.dataset.i].fn(); } });
+$("#abrirPaleta").onclick = abrirPaleta;
+if (!/Mac|iPhone|iPad/.test(navigator.platform)) $("#atalhoK").textContent = "Ctrl K";
+
+document.addEventListener("keydown", e => {
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); $("#paleta").hidden ? abrirPaleta() : fecharPaleta(); return; }
+  if (e.key === "Escape") { if (!$("#paleta").hidden) return fecharPaleta(); if (!$("#modelos").hidden) return $("#modelos").hidden = true; fechar(); return; }
+  const digitando = /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
+  if (e.key === "/" && !digitando && VISTA === "leads") { e.preventDefault(); $("#fQ").focus(); }
+});
+
 /* ===================== início ===================== */
+aplicarTema(document.documentElement.dataset.theme);
+if (localStorage.getItem("filtros") === "0" || innerWidth <= 900) alternarFiltros(false);
+if (localStorage.getItem("mapa") === "0") alternarMapa(false);
 desenharTermos(); desenharCidades();
-carregarBuscas().then(() => api("/api/opcoes").then(o => { const t = o.cidades.reduce((a, c) => a + c.n, 0); $("#navN").textContent = t ? fmtInt(t) : ""; }));
-api("/api/leads?limite=1").then(j => { const b = j.base; $("#base").textContent = b.total ? `${fmtInt(b.total)} empresas · ${fmtInt(b.whats)} com celular · ${fmtInt(b.sem_site)} sem site` : ""; });
+carregarListas();
+carregarConfig().then(() => VISTA === "painel" && PAINEL && desenharPainel(PAINEL));
+carregarBuscas().then(() => carregarOpcoes());
+api("/api/leads?limite=1").then(j => baseResumo(j.base));
 rota();
 </script>
 </body>
